@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     nvidia_nim_base_url: str = "https://integrate.api.nvidia.com/v1"
     supabase_url: str
     supabase_service_role_key: str
+    supabase_anon_key: str
     backend_host: str = "0.0.0.0"
     backend_port: int = 8000
 

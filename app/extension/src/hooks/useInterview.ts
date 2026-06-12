@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
-import { InterviewWebSocket } from "../services/websocket";
+import { InterviewWebSocket, createSession } from "../services/websocket";
 import { DeepgramSTT } from "../services/deepgramStt";
+import { getProblemData } from "../utils/domScraper";
 
 type InterviewPhase = "IDLE" | "CONNECTING" | "SPEAKING" | "LISTENING" | "PROCESSING" | "DEBRIEF_READY";
 
@@ -9,8 +10,12 @@ export function useInterview() {
   const wsRef = useRef<InterviewWebSocket | null>(null);
   const sttRef = useRef<DeepgramSTT | null>(null);
 
-  const startInterview = useCallback((sessionId: string, deepgramKey: string) => {
+  const startInterview = useCallback(async (userId: string) => {
     setPhase("CONNECTING");
+
+    const problem = getProblemData();
+    const sessionId = await createSession(userId, problem.slug, problem.title, problem.difficulty);
+
     const ws = new InterviewWebSocket();
     ws.connect(sessionId, (msg) => {
       if (msg.type === "AUDIO_FINISHED") {
@@ -22,6 +27,7 @@ export function useInterview() {
     });
     wsRef.current = ws;
 
+    const deepgramKey = ""; // Will be fetched from backend in production
     const stt = new DeepgramSTT(deepgramKey);
     stt.connect((text, isFinal) => {
       if (isFinal) {
