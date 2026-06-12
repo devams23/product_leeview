@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && node --input-type=module -e \"import{copyFileSync}from'fs';copyFileSync('manifest.json','dist/manifest.json');\"",
+    "build": "tsc && vite build --config vite.content.config.ts && vite build --config vite.auth.config.ts && vite build && node --input-type=module -e \"import{copyFileSync}from'fs';copyFileSync('manifest.json','dist/manifest.json');\"",
     "preview": "vite preview"
   },
   "dependencies": {
