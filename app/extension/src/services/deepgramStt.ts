@@ -14,34 +14,38 @@ export class DeepgramSTT {
       return;
     }
 
-    const deepgram = new DeepgramClient({ apiKey: this.apiKey });
-    this.socket = await deepgram.listen.v1.connect({
-      model: "nova-3",
-      language: "en",
-      smart_format: "true",
-      interim_results: "true",
-      endpointing: 10,
-      punctuate: "true",
-      encoding: "webm",
-      sample_rate: 48000,
-    } as any);
+    try {
+      const deepgram = new DeepgramClient({ apiKey: this.apiKey });
+      this.socket = await deepgram.listen.v1.connect({
+        model: "nova-3",
+        language: "en-US",
+        smart_format: "true",
+        interim_results: "true",
+        endpointing: 10,
+        punctuate: "true",
+        Authorization: this.apiKey,
+      });
 
-    this.socket.on("message", (data: any) => {
-      const alt = data.channel?.alternatives?.[0];
-      const transcript = alt?.transcript;
-      const isFinal = data.is_final;
-      if (transcript) onTranscript(transcript, isFinal);
-    });
+      this.socket.on("message", (data: any) => {
+        const alt = data.channel?.alternatives?.[0];
+        const transcript = alt?.transcript;
+        const isFinal = data.is_final;
+        if (transcript) onTranscript(transcript, isFinal);
+      });
 
-    this.socket.on("error", (err: any) => console.error("Deepgram STT error:", err));
-    this.socket.on("close", () => console.log("Deepgram STT connection closed"));
+      this.socket.on("error", (err: any) => console.error("Deepgram STT error:", err));
+      this.socket.on("close", () => console.log("Deepgram STT connection closed"));
 
-    this.socket.connect();
-    await this.socket.waitForOpen();
+      this.socket.connect();
+      await this.socket.waitForOpen();
+    } catch (err) {
+      console.error("Failed to connect to Deepgram STT:", err);
+      throw err;
+    }
   }
 
   sendAudio(chunk: Blob) {
-    if (this.socket?.readyState === 1) { // WebSocket.OPEN
+    if (this.socket?.readyState === 1) {
       this.socket.sendMedia(chunk);
     }
   }

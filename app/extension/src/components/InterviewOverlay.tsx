@@ -9,8 +9,23 @@ export function InterviewOverlay({
 }) {
   const isListening = phase === "LISTENING";
   const isSpeaking = phase === "SPEAKING";
+  const isError = phase === "ERROR";
 
-  const dotColor = isSpeaking ? "rgba(255,255,255,0.8)" : isListening ? "rgba(255,100,100,0.65)" : "rgba(255,255,255,0.45)";
+  const dotColor = isError
+    ? "rgba(255,100,100,0.8)"
+    : isSpeaking
+    ? "rgba(255,255,255,0.8)"
+    : isListening
+    ? "rgba(255,100,100,0.65)"
+    : "rgba(255,255,255,0.45)";
+
+  const statusText = isError
+    ? "Connection Error"
+    : isSpeaking
+    ? "Interviewer Speaking..."
+    : isListening
+    ? "Listening..."
+    : phase;
 
   return (
     <div
@@ -40,9 +55,7 @@ export function InterviewOverlay({
             animation: isSpeaking ? "pulse 1.5s infinite" : "none",
           }}
         />
-        <span style={{ fontWeight: "500" }}>
-          {isSpeaking ? "Interviewer Speaking..." : isListening ? "Listening..." : phase}
-        </span>
+        <span style={{ fontWeight: "500" }}>{statusText}</span>
       </div>
       {isListening && <Waveform />}
       <button

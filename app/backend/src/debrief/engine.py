@@ -1,13 +1,10 @@
 from .prompts import DEBRIEF_SCORING_PROMPT, REAL_WORLD_PROMPT, DEBRIEF_JSON_SCHEMA
-from src.services.nvidia_nim import NVIDIA_NIM_Client
-from src.config import get_settings
-
-settings = get_settings()
+from src.services.llm import create_llm_provider
 
 
 class DebriefEngine:
     def __init__(self):
-        self.nim = NVIDIA_NIM_Client()
+        self.llm = create_llm_provider()
 
     async def run(self, interview_data: dict) -> dict:
         """Run the full debrief: scoring + real-world mapping."""
@@ -27,7 +24,7 @@ class DebriefEngine:
                 "content": DEBRIEF_SCORING_PROMPT.format(**interview_data),
             },
         ]
-        return await self.nim.generate_structured(messages, DEBRIEF_JSON_SCHEMA)
+        return await self.llm.generate_structured(messages, DEBRIEF_JSON_SCHEMA)
 
     async def _run_real_world(self, interview_data: dict) -> dict:
         messages = [
@@ -43,4 +40,4 @@ class DebriefEngine:
             },
             "required": ["real_world_scenario", "real_world_naive_approach", "real_world_why_wins", "senior_follow_up"],
         }
-        return await self.nim.generate_structured(messages, schema)
+        return await self.llm.generate_structured(messages, schema)
