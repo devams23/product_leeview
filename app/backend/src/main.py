@@ -1,3 +1,4 @@
+import sys
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -7,6 +8,18 @@ from src.websocket.handler import handle_interview_websocket
 from src.services.supabase_client import create_session
 
 settings = get_settings()
+
+# Validate that SUPABASE_SERVICE_ROLE_KEY looks like a service_role key
+# (starts with "eyJ" and is long enough), not the anon key.
+_service_key = settings.supabase_service_role_key
+if not _service_key.startswith("eyJ") or len(_service_key) < 100:
+    print(
+        "\n*** WARNING: SUPABASE_SERVICE_ROLE_KEY looks incorrect.\n"
+        "    Make sure you copied the **service_role** key (NOT the anon key)\n"
+        "    from Project Settings → API in the Supabase dashboard.\n"
+        "    The service_role key starts with 'eyJ' and is ~400 chars long.\n",
+        file=sys.stderr,
+    )
 
 app = FastAPI(title="LeeView Backend", version="0.1.0")
 

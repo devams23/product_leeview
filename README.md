@@ -25,14 +25,31 @@ Turn any LeetCode problem into a real-time AI mock interview. The extension inje
    - `service_role key` → `SUPABASE_SERVICE_ROLE_KEY`
 3. Go to **Authentication → Providers** and enable **Google**:
    - Configure OAuth with `http://localhost:5173` as the redirect URL
-4. Go to **SQL Editor** and run the migrations in order:
+4. Go to **SQL Editor** and run the migrations **in order**:
 
    ```sql
+   -- 1. Tables
    -- Run supabase/migrations/001_initial_schema.sql
-   -- Then run supabase/migrations/002_rls_policies.sql
+
+   -- 2. RLS policies
+   -- Run supabase/migrations/002_rls_policies.sql
+
+   -- 3. RLS fix (backend inserts)
+   -- Run supabase/migrations/003_fix_rls.sql
    ```
 
 5. Go to **Authentication → Users** to see user IDs after someone logs in.
+
+### ⚠️ Critical: service_role vs anon key
+
+In **Project Settings → API** you'll see two keys. **Do not confuse them:**
+
+| Key | Starts with | Used by | Bypasses RLS? |
+|-----|------------|---------|---------------|
+| `anon public` | `eyJ` (shorter) | Dashboard (frontend) | ❌ No |
+| `service_role` | `eyJ` (much longer, ~400 chars) | **Backend** | ✅ Yes |
+
+The backend's `.env` needs the **service_role** key for `SUPABASE_SERVICE_ROLE_KEY`. If you put the anon key here, inserts fail with `new row violates row-level security policy`.
 
 ---
 
@@ -45,15 +62,16 @@ cd app/backend
 cp .env.example .env
 ```
 
-Edit `.env` and fill in your keys:
+Edit `.env` and fill in your keys (see the warning above about service_role vs anon):
 
 ```env
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...service_role_key  ← NOT the anon key!
+SUPABASE_ANON_KEY=eyJ...anon_key
+
 DEEPGRAM_API_KEY=dg_xxx
 NVIDIA_NIM_API_KEY=nvapi-xxx
 NVIDIA_NIM_BASE_URL=https://integrate.api.nvidia.com/v1
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJxxx
-SUPABASE_ANON_KEY=eyJxxx
 BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8000
 ```
