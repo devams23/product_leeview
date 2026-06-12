@@ -112,8 +112,9 @@ Opens at `http://localhost:5173`.
 
 1. Open `http://localhost:5173` in your browser
 2. Click **Sign in with Google**
-3. After login, the page shows your **Supabase User ID** (a UUID)
-4. **Copy this User ID** — you'll paste it into the extension popup
+3. After login, your user info is displayed
+
+The extension will auto-detect this login — no need to copy anything.
 
 ---
 
@@ -135,12 +136,16 @@ npm run build      # produces app/extension/dist/
 4. Select `app/extension/dist/`
 5. The extension appears in your toolbar
 
-### 4.3 Authenticate
+### 4.3 Authenticate (auto — no manual steps)
 
-1. Click the LeeView icon in the toolbar → popup opens
-2. It shows **Backend: offline** — make sure the backend is running (step 2)
-3. Paste your **Supabase User ID** (from dashboard login in step 3.3) into the input
-4. Click **Save** → status changes to "✓ Ready"
+The extension injects an **auth bridge** content script on the dashboard domain (`http://localhost:5173`). When you log in via Google OAuth, Supabase stores the session in `localStorage`. The auth bridge reads it and sends your `user_id` + `email` to the extension's background script, which persists it in `chrome.storage`.
+
+**The flow is seamless:**
+1. Open the dashboard at `http://localhost:5173` and sign in with Google
+2. Click the LeeView icon in the toolbar → popup shows "✓ Signed in" with your email
+3. Navigate to any LeetCode problem — the overlay is ready to go
+
+No manual ID entry, no copy-pasting. Just login once and the extension picks it up.
 
 ### 4.4 Run an Interview
 
