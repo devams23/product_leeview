@@ -1,0 +1,57 @@
+from typing import Any
+
+
+DEBRIEF_SCORING_PROMPT = """
+Given the following interview data, evaluate the candidate.
+
+Problem: {title} ({difficulty})
+Full transcript: {transcript}
+Code snapshots: {code_snapshots}
+Time per state: {time_per_state}
+State transitions: {state_transitions}
+
+Score the candidate on a scale of 1-10 for:
+1. approach_score
+2. communication_score
+3. code_correctness_score
+4. code_quality_score
+5. time_management_score
+6. overall_score
+
+Also provide:
+- actionable_feedback: array of 3-5 specific strings
+- similar_problems: array of 2-3 LeetCode problem slugs
+- summary: one paragraph
+
+Return ONLY valid JSON.
+"""
+
+REAL_WORLD_PROMPT = """
+Given the problem "{title}" with core algorithm "{algorithm}", generate a real-world scenario.
+
+Return ONLY valid JSON with these keys:
+- real_world_scenario
+- real_world_naive_approach
+- real_world_why_wins
+- senior_follow_up
+"""
+
+DEBRIEF_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "approach_score": {"type": "integer", "minimum": 1, "maximum": 10},
+        "communication_score": {"type": "integer", "minimum": 1, "maximum": 10},
+        "code_correctness_score": {"type": "integer", "minimum": 1, "maximum": 10},
+        "code_quality_score": {"type": "integer", "minimum": 1, "maximum": 10},
+        "time_management_score": {"type": "integer", "minimum": 1, "maximum": 10},
+        "overall_score": {"type": "integer", "minimum": 1, "maximum": 10},
+        "actionable_feedback": {"type": "array", "items": {"type": "string"}},
+        "similar_problems": {"type": "array", "items": {"type": "string"}},
+        "summary": {"type": "string"},
+    },
+    "required": [
+        "approach_score", "communication_score", "code_correctness_score",
+        "code_quality_score", "time_management_score", "overall_score",
+        "actionable_feedback", "similar_problems", "summary",
+    ],
+}
