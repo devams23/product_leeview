@@ -1,0 +1,18 @@
+export function getProblemData(): {
+  title: string;
+  slug: string;
+  description: string;
+  difficulty: string;
+  code: string;
+  language: string;
+} {
+  const titleEl = document.querySelector("[data-cy=question-title]");
+  const title = titleEl?.textContent || "Unknown Problem";
+  const slug = window.location.pathname.split("/problems/")[1]?.split("/")[0] || "";
+  const difficulty = document.querySelector("[diff]")?.textContent || "Medium";
+
+  const code = (window as any).monaco?.editor?.getEditors()?.[0]?.getValue() || "";
+  const language = "python";
+
+  return { title, slug, description: "", difficulty, code, language };
+}
