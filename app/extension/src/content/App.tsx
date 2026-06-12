@@ -6,13 +6,15 @@ import { useInterview } from "../hooks/useInterview";
 export default function App() {
   const [started, setStarted] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const { phase, startInterview, stopInterview } = useInterview();
 
   useEffect(() => {
-    chrome.storage.local.get(["userId"], (result) => {
-      if (result.userId) {
+    chrome.runtime.sendMessage({ type: "GET_AUTH" }, (result) => {
+      if (result?.userId) {
         setUserId(result.userId);
+        setUserEmail(result.user?.email || null);
       }
       setReady(true);
     });
@@ -39,8 +41,8 @@ export default function App() {
           color: "rgba(255,255,255,0.88)", minWidth: "250px",
         }}
       >
-        <p style={{ margin: 0, fontSize: "13px" }}>
-          Open the LeeView popup and enter your User ID first.
+        <p style={{ margin: "0 0 8px", fontSize: "13px" }}>
+          Click the LeeView icon in your toolbar, then log in via the dashboard.
         </p>
       </div>
     );
