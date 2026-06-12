@@ -5,3 +5,11 @@ __pycache__/
 node_modules/
 dist/
 .vite/
+.venv
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+
+# TypeScript compiled output (tsc generates .js alongside .ts in this project)
+app/extension/src/**/*.js
