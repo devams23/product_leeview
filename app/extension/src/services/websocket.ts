@@ -12,11 +12,15 @@ export class InterviewWebSocket {
   }
 
   send(data: object) {
-    this.ws?.send(JSON.stringify(data));
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(data));
+    }
   }
 
   disconnect() {
-    this.ws?.close();
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.close();
+    }
   }
 }
 

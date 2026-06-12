@@ -27,9 +27,9 @@ export function useInterview() {
     });
     wsRef.current = ws;
 
-    const deepgramKey = ""; // Will be fetched from backend in production
+    const deepgramKey = import.meta.env.VITE_DEEPGRAM_API_KEY || "";
     const stt = new DeepgramSTT(deepgramKey);
-    stt.connect((text, isFinal) => {
+    await stt.connect((text, isFinal) => {
       if (isFinal) {
         ws.send({ type: "USER_UTTERANCE", text, current_code: "" });
       }
