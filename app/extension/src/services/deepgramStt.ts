@@ -1,9 +1,11 @@
+import { DEEPGRAM_API_KEY } from "../env";
+
 export class DeepgramSTT {
   private socket: WebSocket | null = null;
   private apiKey: string;
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
+  constructor() {
+    this.apiKey = DEEPGRAM_API_KEY || "";
   }
 
   async connect(onTranscript: (text: string, isFinal: boolean) => void): Promise<void> {

@@ -2,9 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
 
-// Popup and background run as ES modules (popup window + service worker).
 export default defineConfig({
   plugins: [react()],
+  define: {
+    "import.meta.env.VITE_DEEPGRAM_API_KEY": JSON.stringify("29fc25e46278b60fb94ad2eb0906d798549f638d"),
+    "DEEPGRAM_API_KEY": JSON.stringify("29fc25e46278b60fb94ad2eb0906d798549f638d"),
+  },
   build: {
     rollupOptions: {
       input: {
@@ -19,6 +22,6 @@ export default defineConfig({
       },
     },
     outDir: "dist",
-    emptyOutDir: false, // content scripts already written by the first build
+    emptyOutDir: false,
   },
 });
