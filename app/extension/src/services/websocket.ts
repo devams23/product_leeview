@@ -6,9 +6,18 @@ export class InterviewWebSocket {
 
   connect(sessionId: string, onMessage: (msg: any) => void) {
     this.ws = new WebSocket(`${WS_URL}/ws/interview/${sessionId}`);
-    this.ws.onopen = () => console.log("WS connected");
-    this.ws.onmessage = (event) => onMessage(JSON.parse(event.data));
-    this.ws.onerror = (err) => console.error("WS error", err);
+    this.ws.onopen = () => console.log("[Extension] WS connected to backend");
+    this.ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        console.log(`[Extension] WS recv: ${msg.type}`);
+        onMessage(msg);
+      } catch (e) {
+        console.error("[Extension] WS parse error:", e);
+      }
+    };
+    this.ws.onerror = (err) => console.error("[Extension] WS error:", err);
+    this.ws.onclose = (e) => console.log("[Extension] WS closed:", e.code, e.reason);
   }
 
   send(data: object) {
