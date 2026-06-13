@@ -1,4 +1,5 @@
 import json
+import re
 import httpx
 from typing import Any
 
@@ -48,6 +49,25 @@ class OpenRouterProvider(LLMProvider):
             data = response.json()
             return data["choices"][0]["message"]["content"]
 
+    def _extract_json(self, text: str) -> str:
+        """Extract JSON from text that might contain markdown or extra content."""
+        # Try to find JSON between ```json and ```
+        json_match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
+        if json_match:
+            return json_match.group(1)
+        
+        # Try to find JSON between ``` and ```
+        json_match = re.search(r"```\s*(\{.*?\})\s*```", text, re.DOTALL)
+        if json_match:
+            return json_match.group(1)
+        
+        # Try to find first complete JSON object
+        json_match = re.search(r"\{.*\}", text, re.DOTALL)
+        if json_match:
+            return json_match.group(0)
+        
+        return text
+
     async def generate_structured(
         self,
         messages: list[dict[str, str]],
@@ -60,7 +80,8 @@ class OpenRouterProvider(LLMProvider):
             "content": (
                 "You are a JSON-only response engine. "
                 "Return valid JSON matching the schema exactly. "
-                "Do not include markdown formatting or extra text."
+                "Do not include markdown formatting, code fences, or extra text. "
+                "Output ONLY the JSON object."
             ),
         }
 
@@ -71,5 +92,18 @@ class OpenRouterProvider(LLMProvider):
 
         all_messages = [system_msg, schema_msg] + messages
 
-        text = await self.generate(all_messages, temperature=temperature)
-        return json.loads(text)
+        last_error = None
+        for attempt in range(3):
+            try:
+                text = await self.generate(all_messages, temperature=temperature)
+                json_text = self._extract_json(text)
+                return json.loads(json_text)
+            except json.JSONDecodeError as e:
+                last_error = e
+                print(f"[OpenRouter] JSON decode attempt {attempt + 1} failed: {e}")
+                print(f"[OpenRouter] Raw response: {text[:500]}")
+                if attempt < 2:
+                    # Retry with lower temperature
+                    continue
+        
+        raise last_error or json.JSONDecodeError("Failed to parse JSON after retries", "", 0)
