@@ -1,4 +1,5 @@
 import sys
+import logging
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -6,6 +7,11 @@ from pydantic import BaseModel
 from src.config import get_settings
 from src.websocket.handler import handle_interview_websocket
 from src.services.supabase_client import create_session
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 settings = get_settings()
 
