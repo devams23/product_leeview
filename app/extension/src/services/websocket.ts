@@ -5,7 +5,7 @@ export class InterviewWebSocket {
   private ws: WebSocket | null = null;
 
   connect(sessionId: string, onMessage: (msg: any) => void) {
-    this.ws = new WebSocket(`${WS_URL}/ws/interview/${sessionId}` , ["json"]);
+    this.ws = new WebSocket(`${WS_URL}/ws/interview/${sessionId}`);
     this.ws.onopen = () => console.log("WS connected");
     this.ws.onmessage = (event) => onMessage(JSON.parse(event.data));
     this.ws.onerror = (err) => console.error("WS error", err);

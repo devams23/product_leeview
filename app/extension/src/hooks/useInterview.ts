@@ -29,6 +29,8 @@ export function useInterview() {
       wsRef.current = ws;
 
       const deepgramKey = import.meta.env.VITE_DEEPGRAM_API_KEY || "";
+      console.log("DG KEY", deepgramKey?.slice(0, 8));
+console.log("DG LEN", deepgramKey?.length);
       const stt = new DeepgramSTT(deepgramKey);
       await stt.connect((text, isFinal) => {
         if (isFinal) {
@@ -38,9 +40,11 @@ export function useInterview() {
       sttRef.current = stt;
 
       navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-        const mediaRecorder = new MediaRecorder(stream);
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
         mediaRecorder.ondataavailable = (event) => {
-          stt.sendAudio(event.data);
+          if (event.data.size > 0) {
+            stt.sendAudio(event.data);
+          }
         };
         mediaRecorder.start(250);
       });
