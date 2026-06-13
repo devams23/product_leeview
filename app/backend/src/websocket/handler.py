@@ -49,6 +49,7 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str):
                 # Call LLM provider with structured output
                 logger.info(f"[{session_id}] Calling LLM...")
                 parsed = await llm.generate_structured(messages, INTERVIEW_RESPONSE_SCHEMA)
+                logger.info(f"[{session_id}] LLM raw parsed: {parsed}")
                 response_text = parsed["response_text"]
                 next_state_str = parsed.get("next_state")
                 logger.info(f"[{session_id}] LLM response: '{response_text[:100]}...' next_state: {next_state_str}")
@@ -58,7 +59,20 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str):
                     next_state = InterviewState(next_state_str)
                     transitioned = sm.transition(next_state)
                     if not transitioned:
-                        logger.warning(f"[{session_id}] Invalid state transition: {sm.current_state} -> {next_state}")
+                        logger.warning(f"[{session_id}] Invalid state transition: {sm.current_state} -> {next_state}, defaulting to valid transition")
+                        # Default to correct next state from current
+                        valid_next = {
+                            InterviewState.INTRO: InterviewState.AWAITING_CLARIFICATION,
+                            InterviewState.AWAITING_CLARIFICATION: InterviewState.AWAITING_APPROACH,
+                            InterviewState.AWAITING_APPROACH: InterviewState.AWAITING_CODE,
+                            InterviewState.AWAITING_CODE: InterviewState.AWAITING_WALKTHROUGH,
+                            InterviewState.AWAITING_WALKTHROUGH: InterviewState.CONCLUDING,
+                            InterviewState.CONCLUDING: InterviewState.GENERATING_DEBRIEF,
+                        }
+                        if sm.current_state in valid_next:
+                            fallback = valid_next[sm.current_state]
+                            sm.transition(fallback)
+                            logger.info(f"[{session_id}] Fallback transition: {sm.current_state}")
                     else:
                         logger.info(f"[{session_id}] State transition: {sm.current_state}")
 
