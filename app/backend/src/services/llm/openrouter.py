@@ -21,6 +21,7 @@ class OpenRouterProvider(LLMProvider):
             "HTTP-Referer": "https://leeview.app",
             "X-Title": "LeeView Mock Interview",
         }
+        self.timeout = httpx.Timeout(30.0, connect=10.0)
 
     @property
     def provider_name(self) -> str:
@@ -37,7 +38,7 @@ class OpenRouterProvider(LLMProvider):
             "max_tokens": 1024,
         }
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
                 f"{self.base_url}/chat/completions",
                 headers=self.headers,

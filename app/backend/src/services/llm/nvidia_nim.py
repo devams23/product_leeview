@@ -19,6 +19,7 @@ class NVIDIANIMProvider(LLMProvider):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+        self.timeout = httpx.Timeout(30.0, connect=10.0)
 
     @property
     def provider_name(self) -> str:
@@ -35,7 +36,7 @@ class NVIDIANIMProvider(LLMProvider):
             "max_tokens": 1024,
         }
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
                 f"{self.base_url}/chat/completions",
                 headers=self.headers,
