@@ -195,7 +195,7 @@ Extension calls POST /sessions → creates row in interview_sessions (Supabase)
 Extension opens WebSocket ws://localhost:8000/ws/interview/{session_id}
         │
         ▼
-Backend intro audio plays → user speaks → Deepgram STT → NVIDIA NIM → Deepgram TTS
+Backend intro audio plays → user speaks → Deepgram STT → NVIDIA NIM/openrouter → Deepgram TTS
         │
         ▼
 Interview cycles through state machine:

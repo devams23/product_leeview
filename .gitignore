@@ -13,3 +13,4 @@ dist/
 
 # TypeScript compiled output (tsc generates .js alongside .ts in this project)
 app/extension/src/**/*.js
+app2
