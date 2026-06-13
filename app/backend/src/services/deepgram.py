@@ -21,13 +21,20 @@ class DeepgramTTSClient:
 
         """Yields PCM audio chunks."""
         async with websockets.connect(self.ws_url, subprotocols=["token", self.api_key]) as ws:
-            await ws.send(json.dumps({"text": text}))
-            await ws.send(json.dumps({"type": "Speak.Finalize"}))
+            # Send text to synthesize
+            await ws.send(json.dumps({"type": "Speak", "text": text}))
+            # Flush to signal end of text
+            await ws.send(json.dumps({"type": "Flush"}))
 
             async for message in ws:
                 if isinstance(message, bytes):
                     yield message
                 else:
                     data = json.loads(message)
-                    if data.get("type") == "Results":
+                    logger.debug("Deepgram TTS message: %s", data)
+                    if data.get("type") == "Flushed":
+                        logger.info("Deepgram TTS flushed, ending stream")
+                        break
+                    elif data.get("type") == "Error":
+                        logger.error("Deepgram TTS error: %s", data)
                         break
