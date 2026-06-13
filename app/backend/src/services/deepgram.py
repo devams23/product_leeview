@@ -1,11 +1,12 @@
 import json
-from venv import logger
+import logging
 import websockets
 from typing import AsyncIterator
 
 from src.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class DeepgramTTSClient:
@@ -13,13 +14,13 @@ class DeepgramTTSClient:
 
     def __init__(self):
         self.api_key = settings.deepgram_api_key
-        self.ws_url = "wss://api.deepgram.com/v1/speak?encoding=linear16&sample_rate=24000"
+        self.ws_url = "wss://api.deepgram.com/v1/speak?model=aura-2-thalia-en&encoding=linear16&sample_rate=24000"
 
     async def stream_tts(self, text: str) -> AsyncIterator[bytes]:
         logger.info("received text to synthesize: %s", text)
+
         """Yields PCM audio chunks."""
-        headers = {"Authorization": f"Token {self.api_key}"}
-        async with websockets.connect(self.ws_url, additional_headers=headers) as ws:
+        async with websockets.connect(self.ws_url, subprotocols=["token", self.api_key]) as ws:
             await ws.send(json.dumps({"text": text}))
             await ws.send(json.dumps({"type": "Speak.Finalize"}))
 
