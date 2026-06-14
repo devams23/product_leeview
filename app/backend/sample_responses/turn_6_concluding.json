@@ -1,0 +1,4 @@
+{
+  "response_text": "Excellent walkthrough! That wraps up the coding portion. Let me generate your debrief with feedback on your performance.",
+  "next_state": "GENERATING_DEBRIEF"
+}

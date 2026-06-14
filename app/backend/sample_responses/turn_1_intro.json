@@ -1,0 +1,4 @@
+{
+  "response_text": "Welcome to your LeeView mock interview! I'm your interviewer today. Let's start with a quick introduction - could you tell me a bit about your background and what interests you about this role?",
+  "next_state": "AWAITING_CLARIFICATION"
+}

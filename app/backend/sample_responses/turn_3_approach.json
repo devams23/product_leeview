@@ -1,0 +1,4 @@
+{
+  "response_text": "Good understanding! Now, how would you approach solving this? Walk me through your high-level algorithm and any data structures you'd use.",
+  "next_state": "AWAITING_CODE"
+}
