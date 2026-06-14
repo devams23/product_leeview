@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "meta-llama/llama-3.2-3b-instruct:free"
-    llm_provider: str = "nvidia_nim"
+    llm_provider: str = "mock"
     supabase_url: str
     supabase_service_role_key: str
     supabase_anon_key: str

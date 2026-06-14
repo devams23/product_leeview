@@ -26,7 +26,7 @@ export class DeepgramSTT {
         // wsUrl.searchParams.set("encoding", "linear16");
         // wsUrl.searchParams.set("sample_rate", "16000");
 
-        this.socket = new WebSocket('wss://api.deepgram.com/v1/listen', ['token', this.apiKey]);
+        this.socket = new WebSocket('wss://api.deepgram.com/v1/listen', ['token', '452f50281d662fdb07e3627685fab5400f3317c9']);
 
         // Setup connection timeout
         const timeoutId = setTimeout(() => {
