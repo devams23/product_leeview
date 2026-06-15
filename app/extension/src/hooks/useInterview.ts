@@ -47,22 +47,30 @@ function createWavHeader(dataLength: number): ArrayBuffer {
   return header;
 }
 
-function pcmToWav(pcmData: ArrayBuffer): ArrayBuffer {
+function pcmToWavBlob(pcmData: ArrayBuffer): Blob {
   const header = createWavHeader(pcmData.byteLength);
-  const wav = new ArrayBuffer(header.byteLength + pcmData.byteLength);
-  const view = new Uint8Array(wav);
-  view.set(new Uint8Array(header), 0);
-  view.set(new Uint8Array(pcmData), header.byteLength);
-  return wav;
+  const wavBuffer = new Uint8Array(header.byteLength + pcmData.byteLength);
+  wavBuffer.set(new Uint8Array(header), 0);
+  wavBuffer.set(new Uint8Array(pcmData), header.byteLength);
+  return new Blob([wavBuffer], { type: "audio/wav" });
+}
+
+function hexToBytes(hexData: string): Uint8Array {
+  const cleanHex = hexData.replace(/[^0-9a-fA-F]/g, "");
+  const bytes = new Uint8Array(cleanHex.length / 2);
+  for (let i = 0; i < cleanHex.length; i += 2) {
+    bytes[i / 2] = parseInt(cleanHex.substr(i, 2), 16);
+  }
+  return bytes;
 }
 
 export function useInterview() {
   const [phase, setPhase] = useState<InterviewPhase>("IDLE");
   const wsRef = useRef<InterviewWebSocket | null>(null);
   const sttRef = useRef<DeepgramSTT | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const audioChunksRef = useRef<ArrayBuffer[]>([]);
-  const isPlayingRef = useRef(false);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
   const playAudio = useCallback(async () => {
     if (audioChunksRef.current.length === 0) {
@@ -82,43 +90,62 @@ export function useInterview() {
       offset += chunk.byteLength;
     }
     
-    // Create WAV and play
-    const wavData = pcmToWav(combinedPcm);
+    // Create WAV blob and blob URL
+    const wavBlob = pcmToWavBlob(combinedPcm);
+    console.log(`[Extension] Created WAV blob: ${wavBlob.size} bytes`);
     
-    if (!audioCtxRef.current) {
-      audioCtxRef.current = new AudioContext({ sampleRate: SAMPLE_RATE });
-      console.log("[Extension] Created AudioContext at 24kHz");
+    // Clean up previous blob URL if exists
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
     }
-    const audioCtx = audioCtxRef.current;
-    if (audioCtx.state === "suspended") {
-      await audioCtx.resume();
-      console.log("[Extension] AudioContext resumed");
-    }
+    
+    const blobUrl = URL.createObjectURL(wavBlob);
+    blobUrlRef.current = blobUrl;
+    console.log(`[Extension] Created blob URL: ${blobUrl}`);
+    
+    // Create and play audio element
+    const audio = new Audio(blobUrl);
+    audioElementRef.current = audio;
+    
+    audio.onended = () => {
+      console.log("[Extension] Playback finished");
+      audioChunksRef.current = [];
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+      audioElementRef.current = null;
+    };
+    
+    audio.onerror = (e) => {
+      console.error("[Extension] Audio playback error:", e);
+      audioChunksRef.current = [];
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+      audioElementRef.current = null;
+    };
     
     try {
-      const audioBuffer = await audioCtx.decodeAudioData(wavData);
-      console.log(`[Extension] Decoded WAV: ${audioBuffer.duration.toFixed(2)}s, ${audioBuffer.sampleRate}Hz`);
-      const source = audioCtx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioCtx.destination);
-      source.onended = () => {
-        console.log("[Extension] Playback finished");
-        audioChunksRef.current = [];
-        isPlayingRef.current = false;
-      };
-      source.start(0);
-      isPlayingRef.current = true;
+      await audio.play();
+      console.log("[Extension] Audio playback started");
     } catch (e) {
-      console.error("[Extension] Failed to decode/play audio:", e);
+      console.error("[Extension] Failed to play audio (autoplay blocked?):", e);
+      // Autoplay was blocked - user interaction needed
       audioChunksRef.current = [];
-      isPlayingRef.current = false;
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+      audioElementRef.current = null;
     }
   }, []);
 
   const handleAudioChunk = useCallback((hexData: string) => {
-    const bytes = new Uint8Array(hexData.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+    const bytes = hexToBytes(hexData);
     console.log(`[Extension] Received AUDIO_CHUNK: ${bytes.length} bytes`);
-    audioChunksRef.current.push(bytes.buffer);
+    audioChunksRef.current.push(bytes.buffer as ArrayBuffer);
   }, []);
 
   const startInterview = useCallback(async (userId: string) => {
@@ -184,8 +211,18 @@ export function useInterview() {
     wsRef.current?.send({ type: "INTERRUPT" });
     wsRef.current?.disconnect();
     sttRef.current?.disconnect();
+    
+    // Clean up audio playback
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current = null;
+    }
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
     audioChunksRef.current = [];
-    isPlayingRef.current = false;
+    
     setPhase("IDLE");
     console.log("[Extension] Interview stopped, phase set to IDLE");
   }, []);
