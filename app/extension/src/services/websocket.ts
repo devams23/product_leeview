@@ -11,7 +11,9 @@ export class InterviewWebSocket {
       try {
         const msg = JSON.parse(event.data);
         console.log(`[Extension] WS recv: ${msg.type}`);
+        console.log("[Extension] Calling onMessage callback...");
         onMessage(msg);
+        console.log("[Extension] onMessage callback returned");
       } catch (e) {
         console.error("[Extension] WS parse error:", e);
       }
