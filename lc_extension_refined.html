@@ -1,0 +1,127 @@
+
+<style>
+  .wrap { display:flex; flex-direction:column; align-items:center; gap:2.5rem; padding:2rem 0; background:#1a1a1e; border-radius:16px; }
+  .state-lbl { font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:#3a3a4a; font-family:monospace; margin-bottom:6px; text-align:center; }
+  .panel { width:280px; background:#252525; border-radius:20px; border:1px solid #2e2e2e; overflow:hidden; }
+  .panel-top { display:flex; justify-content:center; padding:10px 16px 0; }
+
+  .cta-btn { display:flex; align-items:center; gap:7px; background:#2e2e2e; border:1px solid #3a3a3a; color:#c8c8c8; border-radius:30px; padding:7px 16px; font-size:12px; font-weight:500; font-family:monospace; letter-spacing:0.02em; }
+  .cta-btn i { font-size:14px; }
+  .cta-btn.live { background:#2e1f1f; border-color:#4a2828; color:#c07070; }
+  .cta-btn.done { background:#1e2a24; border-color:#2a3d30; color:#70a888; }
+
+  .panel-body { background:#1e1e1e; border-radius:14px; margin:8px 0 0; padding:10px 12px 12px; }
+  .nav-row { display:flex; justify-content:space-around; }
+  .n { display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; padding:5px 8px; border-radius:10px; min-width:52px; }
+  .n i { font-size:18px; color:#3a3a4a; }
+  .n span { font-size:10px; color:#3a3a4a; font-family:monospace; }
+  .n.on i { color:#b0b0b0; }
+  .n.on span { color:#b0b0b0; font-weight:500; }
+  .n.act i { color:#b06060; }
+  .n.act span { color:#b06060; }
+
+  .waveform { display:flex; align-items:center; justify-content:center; gap:3px; height:28px; margin-bottom:8px; }
+  .wb { width:3px; border-radius:3px; background:#804040; animation:wv 0.9s ease-in-out infinite; }
+  .wb:nth-child(1){height:8px;animation-delay:0s}
+  .wb:nth-child(2){height:16px;animation-delay:0.1s}
+  .wb:nth-child(3){height:22px;animation-delay:0.2s}
+  .wb:nth-child(4){height:12px;animation-delay:0.15s}
+  .wb:nth-child(5){height:26px;animation-delay:0.05s}
+  .wb:nth-child(6){height:18px;animation-delay:0.25s}
+  .wb:nth-child(7){height:10px;animation-delay:0.3s}
+  .wb:nth-child(8){height:20px;animation-delay:0.1s}
+  .wb:nth-child(9){height:14px;animation-delay:0.2s}
+  .wb:nth-child(10){height:8px;animation-delay:0.35s}
+  @keyframes wv { 0%,100%{transform:scaleY(1);opacity:.8} 50%{transform:scaleY(0.3);opacity:0.3} }
+
+  .timer { font-size:11px; color:#3a3a4a; text-align:center; font-family:monospace; margin-bottom:8px; }
+
+  .scores { display:flex; gap:5px; margin-bottom:8px; }
+  .sp { flex:1; background:#252525; border-radius:8px; padding:7px 4px; text-align:center; border:1px solid #2e2e2e; }
+  .sn { font-size:14px; font-weight:500; font-family:monospace; color:#b0b0b0; }
+  .sl { font-size:10px; color:#606068; font-family:monospace; margin-top:3px; }
+
+  .insight { font-size:11px; color:#707078; background:#222222; border-left:2px solid #404040; border-radius:0 8px 8px 0; padding:8px 10px; font-family:monospace; line-height:1.55; margin-bottom:10px; }
+  .insight b { color:#a0a0a8; font-weight:500; }
+
+  .dot { width:6px;height:6px;border-radius:50%;background:#804040;animation:blink 1.2s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+</style>
+
+<div class="wrap">
+
+  <div>
+    <div class="state-lbl">idle</div>
+    <div class="panel">
+      <div class="panel-top">
+        <div class="cta-btn">
+          <i class="ti ti-microphone" aria-hidden="true"></i>
+          Begin interview
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="nav-row">
+          <div class="n on"><i class="ti ti-brain" aria-hidden="true"></i><span>Problem</span></div>
+          <div class="n"><i class="ti ti-clipboard-list" aria-hidden="true"></i><span>History</span></div>
+          <div class="n"><i class="ti ti-settings-2" aria-hidden="true"></i><span>Config</span></div>
+          <div class="n"><i class="ti ti-user-circle" aria-hidden="true"></i><span>Profile</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="state-lbl">recording</div>
+    <div class="panel" style="background:#221e1e;border-color:#2e2424;">
+      <div class="panel-top">
+        <div class="cta-btn live">
+          <div class="dot"></div>
+          Listening
+        </div>
+      </div>
+      <div class="panel-body" style="background:#1a1616;">
+        <div class="waveform">
+          <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+          <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+          <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+          <div class="wb"></div>
+        </div>
+        <div class="timer">02:47</div>
+        <div class="nav-row">
+          <div class="n on"><i class="ti ti-brain" aria-hidden="true"></i><span>Problem</span></div>
+          <div class="n"><i class="ti ti-player-pause" aria-hidden="true"></i><span>Pause</span></div>
+          <div class="n act"><i class="ti ti-player-stop" aria-hidden="true"></i><span>End</span></div>
+          <div class="n"><i class="ti ti-flag" aria-hidden="true"></i><span>Flag</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="state-lbl">debrief</div>
+    <div class="panel">
+      <div class="panel-top">
+        <div class="cta-btn done">
+          <i class="ti ti-report-analytics" aria-hidden="true"></i>
+          Debrief ready
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="scores">
+          <div class="sp"><div class="sn">8.2</div><div class="sl">Approach</div></div>
+          <div class="sp"><div class="sn">6.5</div><div class="sl">Clarity</div></div>
+          <div class="sp"><div class="sn">4.1</div><div class="sl">Edge cases</div></div>
+          <div class="sp"><div class="sn">7.8</div><div class="sl">Complexity</div></div>
+        </div>
+        <div class="insight"><b>Jumped to code early</b> — no clarification on constraints before optimizing.</div>
+        <div class="nav-row">
+          <div class="n on"><i class="ti ti-chart-bar" aria-hidden="true"></i><span>Scores</span></div>
+          <div class="n"><i class="ti ti-message-2" aria-hidden="true"></i><span>Transcript</span></div>
+          <div class="n"><i class="ti ti-rotate-clockwise" aria-hidden="true"></i><span>Retry</span></div>
+          <div class="n"><i class="ti ti-share" aria-hidden="true"></i><span>Share</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

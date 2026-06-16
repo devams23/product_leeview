@@ -10,11 +10,6 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_DEEPGRAM_API_KEY": JSON.stringify(env.VITE_DEEPGRAM_API_KEY),
       "DEEPGRAM_API_KEY": JSON.stringify(env.VITE_DEEPGRAM_API_KEY),
     },
-    resolve: {
-      alias: {
-        "@hooks": resolve(__dirname, "src/hooks"),
-      },
-    },
     build: {
       rollupOptions: {
         input: "src/content/main.tsx",

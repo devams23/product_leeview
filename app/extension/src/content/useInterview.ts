@@ -9,51 +9,7 @@ const SAMPLE_RATE = 24000;
 const CHANNELS = 1;
 const BITS_PER_SAMPLE = 16;
 
-function createWavHeader(dataLength: number): ArrayBuffer {
-  const header = new ArrayBuffer(44);
-  const view = new DataView(header);
-  
-  // RIFF header
-  view.setUint8(0, 0x52); // 'R'
-  view.setUint8(1, 0x49); // 'I'
-  view.setUint8(2, 0x46); // 'F'
-  view.setUint8(3, 0x46); // 'F'
-  view.setUint32(4, 36 + dataLength, true); // file size - 8
-  view.setUint8(8, 0x57); // 'W'
-  view.setUint8(9, 0x41); // 'A'
-  view.setUint8(10, 0x56); // 'V'
-  view.setUint8(11, 0x45); // 'E'
-  
-  // fmt chunk
-  view.setUint8(12, 0x66); // 'f'
-  view.setUint8(13, 0x6D); // 'm'
-  view.setUint8(14, 0x74); // 't'
-  view.setUint8(15, 0x20); // ' '
-  view.setUint32(16, 16, true); // fmt chunk size
-  view.setUint16(20, 1, true); // audio format (1 = PCM)
-  view.setUint16(22, CHANNELS, true); // channels
-  view.setUint32(24, SAMPLE_RATE, true); // sample rate
-  view.setUint32(28, SAMPLE_RATE * CHANNELS * BITS_PER_SAMPLE / 8, true); // byte rate
-  view.setUint16(32, CHANNELS * BITS_PER_SAMPLE / 8, true); // block align
-  view.setUint16(34, BITS_PER_SAMPLE, true); // bits per sample
-  
-  // data chunk
-  view.setUint8(36, 0x64); // 'd'
-  view.setUint8(37, 0x61); // 'a'
-  view.setUint8(38, 0x74); // 't'
-  view.setUint8(39, 0x61); // 'a'
-  view.setUint32(40, dataLength, true); // data size
-  
-  return header;
-}
 
-function pcmToWavBlob(pcmData: ArrayBuffer): Blob {
-  const header = createWavHeader(pcmData.byteLength);
-  const wavBuffer = new Uint8Array(header.byteLength + pcmData.byteLength);
-  wavBuffer.set(new Uint8Array(header), 0);
-  wavBuffer.set(new Uint8Array(pcmData), header.byteLength);
-  return new Blob([wavBuffer], { type: "audio/wav" });
-}
 
 function hexToBytes(hexData: string): Uint8Array {
   const cleanHex = hexData.replace(/[^0-9a-fA-F]/g, "");
@@ -68,67 +24,43 @@ export function useInterview() {
   const [phase, setPhase] = useState<InterviewPhase>("IDLE");
   const wsRef = useRef<InterviewWebSocket | null>(null);
   const sttRef = useRef<DeepgramSTT | null>(null);
-  const audioChunksRef = useRef<ArrayBuffer[]>([]);
-  const audioElementRef = useRef<HTMLAudioElement | null>(null);
-  const blobUrlRef = useRef<string | null>(null);
-
-  const playAudio = useCallback(async () => {
-    if (audioChunksRef.current.length === 0) return;
-    
-    const totalLength = audioChunksRef.current.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-    const combinedPcm = new ArrayBuffer(totalLength);
-    const combinedView = new Uint8Array(combinedPcm);
-    let offset = 0;
-    for (const chunk of audioChunksRef.current) {
-      combinedView.set(new Uint8Array(chunk), offset);
-      offset += chunk.byteLength;
-    }
-    
-    const wavBlob = pcmToWavBlob(combinedPcm);
-    
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current);
-    }
-    
-    const blobUrl = URL.createObjectURL(wavBlob);
-    blobUrlRef.current = blobUrl;
-    
-    const audio = new Audio(blobUrl);
-    audioElementRef.current = audio;
-    
-    audio.onended = () => {
-      audioChunksRef.current = [];
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-      }
-      audioElementRef.current = null;
-    };
-    
-    audio.onerror = () => {
-      audioChunksRef.current = [];
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-      }
-      audioElementRef.current = null;
-    };
-    
-    try {
-      await audio.play();
-    } catch {
-      audioChunksRef.current = [];
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-      }
-      audioElementRef.current = null;
-    }
-  }, []);
+  
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const nextStartTimeRef = useRef<number>(0);
+  const sourceNodesRef = useRef<AudioBufferSourceNode[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const handleAudioChunk = useCallback((hexData: string) => {
+    if (!audioContextRef.current) return;
+    
     const bytes = hexToBytes(hexData);
-    audioChunksRef.current.push(bytes.buffer as ArrayBuffer);
+    const pcmData = bytes.buffer as ArrayBuffer;
+    
+    // Convert 16-bit PCM to Float32 for Web Audio API
+    const int16 = new Int16Array(pcmData);
+    const float32 = new Float32Array(int16.length);
+    for (let i = 0; i < int16.length; i++) {
+      float32[i] = int16[i] / 32768.0;
+    }
+
+    const audioBuffer = audioContextRef.current.createBuffer(CHANNELS, float32.length, SAMPLE_RATE);
+    audioBuffer.getChannelData(0).set(float32);
+
+    const source = audioContextRef.current.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioContextRef.current.destination);
+
+    // Ensure playback starts slightly in the future or queues perfectly after the last chunk
+    const currentTime = audioContextRef.current.currentTime;
+    if (nextStartTimeRef.current < currentTime) {
+      nextStartTimeRef.current = currentTime + 0.05; // 50ms buffer to prevent jitter on first chunk
+    }
+
+    source.start(nextStartTimeRef.current);
+    sourceNodesRef.current.push(source);
+    
+    nextStartTimeRef.current += audioBuffer.duration;
   }, []);
 
   const startInterview = useCallback(async (userId: string) => {
@@ -144,10 +76,27 @@ export function useInterview() {
       const ws = new InterviewWebSocket();
       ws.connect(sessionId, (msg) => {
         if (msg.type === "AUDIO_CHUNK") {
+          setPhase((prev) => {
+            if (prev !== "SPEAKING") return "SPEAKING";
+            return prev;
+          });
           handleAudioChunk(msg.data);
         } else if (msg.type === "AUDIO_FINISHED") {
-          playAudio();
-          setPhase("LISTENING");
+          if (audioContextRef.current) {
+            const timeRemaining = nextStartTimeRef.current - audioContextRef.current.currentTime;
+            if (timeRemaining > 0) {
+              setTimeout(() => {
+                setPhase("LISTENING");
+                // Clear out played source nodes periodically
+                sourceNodesRef.current = [];
+              }, timeRemaining * 1000);
+            } else {
+              setPhase("LISTENING");
+              sourceNodesRef.current = [];
+            }
+          } else {
+            setPhase("LISTENING");
+          }
         } else if (msg.type === "DEBRIEF_READY") {
           setPhase("DEBRIEF_READY");
         }
@@ -167,18 +116,31 @@ export function useInterview() {
 
       navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
         console.log("[Extension] Microphone access granted");
+        streamRef.current = stream;
+        
+        // Initialize AudioContext on user interaction
+        if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          audioContextRef.current = new AudioContextClass({ sampleRate: SAMPLE_RATE });
+        } else if (audioContextRef.current.state === "suspended") {
+          audioContextRef.current.resume();
+        }
+        nextStartTimeRef.current = audioContextRef.current.currentTime;
+        sourceNodesRef.current = [];
+
         const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        mediaRecorderRef.current = mediaRecorder;
         mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
+          if (event.data.size > 0 && sttRef.current) {
             console.log(`[Extension] MediaRecorder chunk: ${event.data.size} bytes`);
-            stt.sendAudio(event.data);
+            sttRef.current.sendAudio(event.data);
           }
         };
         mediaRecorder.start(250);
         console.log("[Extension] MediaRecorder started (250ms intervals)");
       });
 
-      setPhase("SPEAKING");
+      setPhase("LISTENING"); // Start in LISTENING phase, waiting for first AUDIO_CHUNK to switch to SPEAKING
       console.log("[Extension] Phase set to SPEAKING");
     } catch (err) {
       console.error("[Extension] Failed to start interview:", err);
@@ -190,18 +152,33 @@ export function useInterview() {
     console.log("[Extension] Stopping interview...");
     wsRef.current?.send({ type: "INTERRUPT" });
     wsRef.current?.disconnect();
+    wsRef.current = null;
     sttRef.current?.disconnect();
+    sttRef.current = null;
+    
+    // Stop recording and close mic
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
     
     // Clean up audio playback
-    if (audioElementRef.current) {
-      audioElementRef.current.pause();
-      audioElementRef.current = null;
+    sourceNodesRef.current.forEach(source => {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch (e) {}
+    });
+    sourceNodesRef.current = [];
+    nextStartTimeRef.current = 0;
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      audioContextRef.current.close().catch(console.error);
+      audioContextRef.current = null;
     }
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current);
-      blobUrlRef.current = null;
-    }
-    audioChunksRef.current = [];
     
     setPhase("IDLE");
     console.log("[Extension] Interview stopped, phase set to IDLE");

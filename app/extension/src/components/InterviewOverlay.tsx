@@ -1,89 +1,10 @@
-import { Waveform } from "./Waveform";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useDraggable } from "../hooks/useDraggable";
 
-const PHASE_CONFIG = {
-  SPEAKING: {
-    label: "Interviewer Speaking",
-    dotColor: "rgba(255,255,255,0.9)",
-    ringColor: "rgba(255,255,255,0.3)",
-    panelBg: "rgba(255,255,255,0.12)",
-    showWaveform: false,
-  },
-  LISTENING: {
-    label: "Listening",
-    dotColor: "rgba(255,100,100,0.9)",
-    ringColor: "rgba(255,100,100,0.3)",
-    panelBg: "rgba(0,0,0,0.35)",
-    showWaveform: true,
-  },
-  CONNECTING: {
-    label: "Connecting",
-    dotColor: "rgba(255,255,255,0.5)",
-    ringColor: "rgba(255,255,255,0.15)",
-    panelBg: "rgba(255,255,255,0.12)",
-    showWaveform: false,
-  },
-  PROCESSING: {
-    label: "Processing",
-    dotColor: "rgba(255,180,80,0.9)",
-    ringColor: "rgba(255,180,80,0.25)",
-    panelBg: "rgba(255,255,255,0.12)",
-    showWaveform: false,
-  },
-  DEBRIEF_READY: {
-    label: "Debrief Ready",
-    dotColor: "rgba(112,168,136,0.9)",
-    ringColor: "rgba(112,168,136,0.3)",
-    panelBg: "rgba(255,255,255,0.12)",
-    showWaveform: false,
-  },
-  ERROR: {
-    label: "Connection Error",
-    dotColor: "rgba(255,100,100,0.8)",
-    ringColor: "rgba(255,100,100,0.2)",
-    panelBg: "rgba(255,255,255,0.12)",
-    showWaveform: false,
-  },
-  IDLE: {
-    label: "Ready",
-    dotColor: "rgba(255,255,255,0.45)",
-    ringColor: "rgba(255,255,255,0.1)",
-    panelBg: "rgba(255,255,255,0.12)",
-    showWaveform: false,
-  },
-} as const;
-
-type Phase = keyof typeof PHASE_CONFIG;
-
-function StatusRing({ color, ringColor, isSpeaking }: { color: string; ringColor: string; isSpeaking: boolean }) {
-  return (
-    <div style={{ position: "relative", width: "28px", height: "28px" }}>
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          borderRadius: "50%",
-          border: `2px solid ${ringColor}`,
-          animation: isSpeaking ? "ringPulse 1.5s ease-out infinite" : "none",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          inset: "6px",
-          borderRadius: "50%",
-          background: color,
-          boxShadow: `0 0 8px ${color}, 0 0 16px ${color}`,
-        }}
-      />
-      <style>{`
-        @keyframes ringPulse {
-          0% { transform: scale(1); opacity: 0.6; }
-          100% { transform: scale(1.5); opacity: 0; }
-        }
-      `}</style>
-    </div>
-  );
+function formatTime(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
 export function InterviewOverlay({
@@ -93,9 +14,18 @@ export function InterviewOverlay({
   phase: string;
   onStop: () => void;
 }) {
-  const config = useMemo(() => PHASE_CONFIG[phase as Phase] || PHASE_CONFIG.IDLE, [phase]);
-  const isListening = phase === "LISTENING";
-  const isSpeaking = phase === "SPEAKING";
+  const { offset, handleMouseDown, isDragging } = useDraggable();
+  const [timer, setTimer] = useState(0);
+
+  useEffect(() => {
+    let interval: any;
+    if (phase !== "IDLE" && phase !== "DEBRIEF_READY" && phase !== "ERROR") {
+      interval = setInterval(() => setTimer(t => t + 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [phase]);
+
+  const isDebrief = phase === "DEBRIEF_READY";
 
   return (
     <div
@@ -104,87 +34,132 @@ export function InterviewOverlay({
         top: "20px",
         right: "20px",
         zIndex: 9999,
-        padding: "18px 20px",
-        borderRadius: "20px",
-        background: config.panelBg,
-        border: "1px solid rgba(255,255,255,0.22)",
-        outline: "1px solid rgba(0,0,0,0.18)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        color: "rgba(255,255,255,0.88)",
-        minWidth: "220px",
-        transition: "background 0.3s ease, border-color 0.3s ease",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "6px",
+        transform: `translate(${offset.x}px, ${offset.y}px)`,
+        cursor: isDragging ? "grabbing" : "grab",
+        userSelect: "none"
       }}
+      onMouseDown={handleMouseDown}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <StatusRing
-          color={config.dotColor}
-          ringColor={config.ringColor}
-          isSpeaking={isSpeaking}
-        />
-        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <span
-            style={{
-              fontWeight: "500",
-              fontSize: "13px",
-              fontFamily: "system-ui, -apple-system, sans-serif",
-              letterSpacing: "0.01em",
-            }}
-          >
-            {config.label}
-          </span>
-          <span
-            style={{
-              fontSize: "10px",
-              fontFamily: "monospace",
-              color: "rgba(255,255,255,0.35)",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-            }}
-          >
-            {phase}
-          </span>
-        </div>
+      <style>{`
+        @keyframes wv { 0%,100%{transform:scaleY(1);opacity:.8} 50%{transform:scaleY(0.3);opacity:0.3} }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+      `}</style>
+      
+      <div style={{
+        fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase",
+        color: "#3a3a4a", fontFamily: "monospace", textAlign: "center"
+      }}>
+        {isDebrief ? "debrief" : "recording"}
       </div>
 
-      {config.showWaveform && <Waveform />}
-
-      <button
-        onClick={onStop}
-        style={{
-          marginTop: "14px",
-          padding: "10px 20px",
-          borderRadius: "30px",
-          background: "rgba(255,100,100,0.1)",
-          border: "1px solid rgba(255,100,100,0.2)",
-          color: "rgba(255,100,100,0.85)",
-          cursor: "pointer",
-          fontWeight: "500",
-          fontFamily: "monospace",
-          fontSize: "11px",
-          letterSpacing: "0.05em",
-          width: "100%",
-          transition: "background 0.2s, border-color 0.2s, color 0.2s, transform 0.1s",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "rgba(255,100,100,0.18)";
-          e.currentTarget.style.borderColor = "rgba(255,100,100,0.35)";
-          e.currentTarget.style.color = "rgba(255,100,100,1)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "rgba(255,100,100,0.1)";
-          e.currentTarget.style.borderColor = "rgba(255,100,100,0.2)";
-          e.currentTarget.style.color = "rgba(255,100,100,0.85)";
-        }}
-        onMouseDown={(e) => {
-          e.currentTarget.style.transform = "scale(0.98)";
-        }}
-        onMouseUp={(e) => {
-          e.currentTarget.style.transform = "scale(1)";
-        }}
-      >
-        End Interview
-      </button>
+      {!isDebrief ? (
+        <div style={{
+          width: "280px", background: "#221e1e", borderRadius: "20px", border: "1px solid #2e2424", overflow: "hidden",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.5)"
+        }}>
+          <div style={{ display: "flex", justifyContent: "center", padding: "10px 16px 0" }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: "7px", background: "#2e1f1f",
+              border: "1px solid #4a2828", color: "#c07070", borderRadius: "30px",
+              padding: "7px 16px", fontSize: "12px", fontWeight: "500", fontFamily: "monospace",
+              letterSpacing: "0.02em"
+            }}>
+              <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#804040", animation: "blink 1.2s infinite" }}></div>
+              {phase === "SPEAKING" ? "Interviewer speaking" : phase === "CONNECTING" ? "Connecting" : phase === "PROCESSING" ? "Processing" : "Listening"}
+            </div>
+          </div>
+          <div style={{ background: "#1a1616", borderRadius: "14px", margin: "8px 0 0", padding: "10px 12px 12px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "3px", height: "28px", marginBottom: "8px" }}>
+              {[8, 16, 22, 12, 26, 18, 10, 20, 14, 8].map((h, i) => (
+                <div key={i} style={{ width: "3px", borderRadius: "3px", background: "#804040", height: `${h}px`, animation: phase === "LISTENING" || phase === "SPEAKING" ? `wv 0.9s ease-in-out infinite` : 'none', animationDelay: `${i * 0.1}s` }}></div>
+              ))}
+            </div>
+            <div style={{ fontSize: "11px", color: "#3a3a4a", textAlign: "center", fontFamily: "monospace", marginBottom: "8px" }}>
+              {formatTime(timer)}
+            </div>
+            <div className="no-drag" style={{ display: "flex", justifyContent: "space-around" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b0b0b0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15.5 13a3.5 3.5 0 0 0 -3.5 3.5v1a3.5 3.5 0 0 0 7 0v-1a3.5 3.5 0 0 0 -3.5 -3.5z"></path><path d="M8.5 13a3.5 3.5 0 0 0 -3.5 3.5v1a3.5 3.5 0 0 0 7 0v-1a3.5 3.5 0 0 0 -3.5 -3.5z"></path><path d="M17.5 16a3.5 3.5 0 0 0 0 7h-11a3.5 3.5 0 0 0 0 -7"></path><path d="M3 8a4 4 0 0 1 4 -4h10a4 4 0 0 1 4 4v5a4 4 0 0 1 -4 4h-10a4 4 0 0 1 -4 -4z"></path></svg>
+                <span style={{ fontSize: "10px", color: "#b0b0b0", fontFamily: "monospace", fontWeight: "500" }}>Problem</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3a3a4a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 5m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z"></path><path d="M14 5m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z"></path></svg>
+                <span style={{ fontSize: "10px", color: "#3a3a4a", fontFamily: "monospace" }}>Pause</span>
+              </div>
+              <div onClick={onStop} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b06060" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 5m0 2a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z"></path></svg>
+                <span style={{ fontSize: "10px", color: "#b06060", fontFamily: "monospace" }}>End</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3a3a4a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1 -7 0a5 5 0 0 0 -7 0v-9z"></path><path d="M5 21v-7"></path></svg>
+                <span style={{ fontSize: "10px", color: "#3a3a4a", fontFamily: "monospace" }}>Flag</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          width: "280px", background: "#252525", borderRadius: "20px", border: "1px solid #2e2e2e", overflow: "hidden",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.5)"
+        }}>
+          <div style={{ display: "flex", justifyContent: "center", padding: "10px 16px 0" }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: "7px", background: "#1e2a24",
+              border: "1px solid #2a3d30", color: "#70a888", borderRadius: "30px",
+              padding: "7px 16px", fontSize: "12px", fontWeight: "500", fontFamily: "monospace",
+              letterSpacing: "0.02em"
+            }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"></path><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z"></path><path d="M9 14l2 2l4 -4"></path><path d="M12 9l-3 -3"></path><path d="M12 15l-3 -3"></path></svg>
+              Debrief ready
+            </div>
+          </div>
+          <div style={{ background: "#1e1e1e", borderRadius: "14px", margin: "8px 0 0", padding: "10px 12px 12px" }}>
+            <div style={{ display: "flex", gap: "5px", marginBottom: "8px" }}>
+              <div style={{ flex: 1, background: "#252525", borderRadius: "8px", padding: "7px 4px", textAlign: "center", border: "1px solid #2e2e2e" }}>
+                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>8.2</div>
+                <div style={{ fontSize: "10px", color: "#606068", fontFamily: "monospace", marginTop: "3px" }}>Approach</div>
+              </div>
+              <div style={{ flex: 1, background: "#252525", borderRadius: "8px", padding: "7px 4px", textAlign: "center", border: "1px solid #2e2e2e" }}>
+                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>6.5</div>
+                <div style={{ fontSize: "10px", color: "#606068", fontFamily: "monospace", marginTop: "3px" }}>Clarity</div>
+              </div>
+              <div style={{ flex: 1, background: "#252525", borderRadius: "8px", padding: "7px 4px", textAlign: "center", border: "1px solid #2e2e2e" }}>
+                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>4.1</div>
+                <div style={{ fontSize: "10px", color: "#606068", fontFamily: "monospace", marginTop: "3px" }}>Edges</div>
+              </div>
+              <div style={{ flex: 1, background: "#252525", borderRadius: "8px", padding: "7px 4px", textAlign: "center", border: "1px solid #2e2e2e" }}>
+                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>7.8</div>
+                <div style={{ fontSize: "10px", color: "#606068", fontFamily: "monospace", marginTop: "3px" }}>Complex</div>
+              </div>
+            </div>
+            <div style={{ fontSize: "11px", color: "#707078", background: "#222222", borderLeft: "2px solid #404040", borderRadius: "0 8px 8px 0", padding: "8px 10px", fontFamily: "monospace", lineHeight: "1.55", marginBottom: "10px" }}>
+              <b style={{ color: "#a0a0a8", fontWeight: "500" }}>Jumped to code early</b> — no clarification on constraints before optimizing.
+            </div>
+            <div className="no-drag" style={{ display: "flex", justifyContent: "space-around" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b0b0b0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"></path><path d="M20 18v3"></path><path d="M16 16v5"></path><path d="M12 13v8"></path><path d="M8 16v5"></path><path d="M3 11c6 0 5 -5 9 -5s3 5 9 5"></path></svg>
+                <span style={{ fontSize: "10px", color: "#b0b0b0", fontFamily: "monospace", fontWeight: "500" }}>Scores</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3a3a4a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 9h8"></path><path d="M8 13h6"></path><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12z"></path></svg>
+                <span style={{ fontSize: "10px", color: "#3a3a4a", fontFamily: "monospace" }}>Transcript</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3a3a4a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.05 11a8 8 0 1 1 .5 4m-.5 5v-5h5"></path></svg>
+                <span style={{ fontSize: "10px", color: "#3a3a4a", fontFamily: "monospace" }}>Retry</span>
+              </div>
+              <div onClick={onStop} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b06060" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6l-12 12"></path><path d="M6 6l12 12"></path></svg>
+                <span style={{ fontSize: "10px", color: "#b06060", fontFamily: "monospace" }}>Close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
