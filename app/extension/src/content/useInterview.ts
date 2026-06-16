@@ -180,8 +180,17 @@ export function useInterview() {
       audioContextRef.current = null;
     }
     
-    setPhase("IDLE");
-    console.log("[Extension] Interview stopped, phase set to IDLE");
+    setPhase((currentPhase) => {
+      if (currentPhase !== "DEBRIEF_READY" && currentPhase !== "IDLE") {
+        console.log("[Extension] Transitioning to DEBRIEF_READY...");
+        setTimeout(() => {
+          setPhase("DEBRIEF_READY");
+        }, 1500);
+        return "PROCESSING";
+      }
+      console.log("[Extension] Interview stopped, phase set to IDLE");
+      return "IDLE";
+    });
   }, []);
 
   return { phase, startInterview, stopInterview };

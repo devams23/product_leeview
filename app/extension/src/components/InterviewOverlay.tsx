@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useDraggable } from "../hooks/useDraggable";
+import { Waveform } from "./Waveform";
 
 function formatTime(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -73,10 +74,8 @@ export function InterviewOverlay({
             </div>
           </div>
           <div style={{ background: "#1a1616", borderRadius: "14px", margin: "8px 0 0", padding: "10px 12px 12px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "3px", height: "28px", marginBottom: "8px" }}>
-              {[8, 16, 22, 12, 26, 18, 10, 20, 14, 8].map((h, i) => (
-                <div key={i} style={{ width: "3px", borderRadius: "3px", background: "#804040", height: `${h}px`, animation: phase === "LISTENING" || phase === "SPEAKING" ? `wv 0.9s ease-in-out infinite` : 'none', animationDelay: `${i * 0.1}s` }}></div>
-              ))}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "38px", marginBottom: "2px" }}>
+              {(phase === "LISTENING" || phase === "SPEAKING") && <Waveform />}
             </div>
             <div style={{ fontSize: "11px", color: "#3a3a4a", textAlign: "center", fontFamily: "monospace", marginBottom: "8px" }}>
               {formatTime(timer)}
