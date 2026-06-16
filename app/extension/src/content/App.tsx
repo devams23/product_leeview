@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { StartPill } from "../components/StartPill";
 import { InterviewOverlay } from "../components/InterviewOverlay";
-import { useInterview } from "../hooks/useInterview";
+import { useInterview } from "@hooks/useInterview";
 
 export default function App() {
   const [started, setStarted] = useState(false);

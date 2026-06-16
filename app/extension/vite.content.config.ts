@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { resolve } from "path";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -8,6 +9,11 @@ export default defineConfig(({ mode }) => {
     define: {
       "import.meta.env.VITE_DEEPGRAM_API_KEY": JSON.stringify(env.VITE_DEEPGRAM_API_KEY),
       "DEEPGRAM_API_KEY": JSON.stringify(env.VITE_DEEPGRAM_API_KEY),
+    },
+    resolve: {
+      alias: {
+        "@hooks": resolve(__dirname, "src/hooks"),
+      },
     },
     build: {
       rollupOptions: {

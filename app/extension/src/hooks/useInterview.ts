@@ -64,7 +64,10 @@ function hexToBytes(hexData: string): Uint8Array {
   return bytes;
 }
 
+const HOOK_SOURCE = "HOOKS_FOLDER_USEINTERVIEW_v1";
+
 export function useInterview() {
+  console.log("[Extension] useInterview hook FROM HOOKS FOLDER loaded", HOOK_SOURCE);
   const [phase, setPhase] = useState<InterviewPhase>("IDLE");
   const wsRef = useRef<InterviewWebSocket | null>(null);
   const sttRef = useRef<DeepgramSTT | null>(null);
