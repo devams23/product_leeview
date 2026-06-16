@@ -162,8 +162,10 @@ export function useInterview() {
 
       const ws = new InterviewWebSocket();
       ws.connect(sessionId, (msg) => {
-        console.log(`[Extension] WS message: ${msg.type}`, msg);
+        console.log("[Extension] WS message received:", JSON.stringify(msg).slice(0, 200));
+        console.log(`[Extension] WS message type: "${msg.type}" (typeof: ${typeof msg.type})`);
         if (msg.type === "AUDIO_CHUNK") {
+          console.log("[Extension] -> Handling AUDIO_CHUNK");
           handleAudioChunk(msg.data);
         } else if (msg.type === "AUDIO_FINISHED") {
           console.log("[Extension] AUDIO_FINISHED received, playing audio...");
@@ -173,7 +175,7 @@ export function useInterview() {
           console.log("[Extension] DEBRIEF_READY received");
           setPhase("DEBRIEF_READY");
         } else {
-          console.log(`[Extension] Unhandled message type: ${msg.type}`);
+          console.log(`[Extension] Unhandled message type: "${msg.type}"`);
         }
       });
       wsRef.current = ws;
