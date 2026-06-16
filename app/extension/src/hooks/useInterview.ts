@@ -73,6 +73,8 @@ export function useInterview() {
   const blobUrlRef = useRef<string | null>(null);
 
   const playAudio = useCallback(async () => {
+    console.log("[Extension] >>> playAudio CALLED <<<");
+    console.log(`[Extension] audioChunksRef.current.length: ${audioChunksRef.current.length}`);
     if (audioChunksRef.current.length === 0) {
       console.log("[Extension] No audio chunks to play");
       return;
