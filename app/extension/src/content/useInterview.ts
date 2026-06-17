@@ -24,7 +24,7 @@ export function useInterview() {
   const [phase, setPhase] = useState<InterviewPhase>("IDLE");
   const wsRef = useRef<InterviewWebSocket | null>(null);
   const sttRef = useRef<DeepgramSTT | null>(null);
-  
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const sourceNodesRef = useRef<AudioBufferSourceNode[]>([]);
@@ -33,10 +33,10 @@ export function useInterview() {
 
   const handleAudioChunk = useCallback((hexData: string) => {
     if (!audioContextRef.current) return;
-    
+
     const bytes = hexToBytes(hexData);
     const pcmData = bytes.buffer as ArrayBuffer;
-    
+
     // Convert 16-bit PCM to Float32 for Web Audio API
     const int16 = new Int16Array(pcmData);
     const float32 = new Float32Array(int16.length);
@@ -59,7 +59,7 @@ export function useInterview() {
 
     source.start(nextStartTimeRef.current);
     sourceNodesRef.current.push(source);
-    
+
     nextStartTimeRef.current += audioBuffer.duration;
   }, []);
 
@@ -68,7 +68,7 @@ export function useInterview() {
     setPhase("CONNECTING");
 
     try {
-      const problem = getProblemData();
+      const problem = await getProblemData();
       console.log(`[Extension] Problem: ${problem.title} (${problem.slug})`);
       const sessionId = await createSession(userId, problem.slug, problem.title, problem.difficulty);
       console.log(`[Extension] Session created: ${sessionId}`);
@@ -117,7 +117,7 @@ export function useInterview() {
       navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
         console.log("[Extension] Microphone access granted");
         streamRef.current = stream;
-        
+
         // Initialize AudioContext on user interaction
         if (!audioContextRef.current || audioContextRef.current.state === "closed") {
           const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -155,7 +155,7 @@ export function useInterview() {
     wsRef.current = null;
     sttRef.current?.disconnect();
     sttRef.current = null;
-    
+
     // Stop recording and close mic
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
@@ -165,13 +165,13 @@ export function useInterview() {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    
+
     // Clean up audio playback
     sourceNodesRef.current.forEach(source => {
       try {
         source.stop();
         source.disconnect();
-      } catch (e) {}
+      } catch (e) { }
     });
     sourceNodesRef.current = [];
     nextStartTimeRef.current = 0;
@@ -179,7 +179,7 @@ export function useInterview() {
       audioContextRef.current.close().catch(console.error);
       audioContextRef.current = null;
     }
-    
+
     setPhase((currentPhase) => {
       if (currentPhase !== "DEBRIEF_READY" && currentPhase !== "IDLE") {
         console.log("[Extension] Transitioning to DEBRIEF_READY...");
