@@ -4,7 +4,6 @@ import { InterviewOverlay } from "../components/InterviewOverlay";
 import { useInterview } from "./useInterview";
 
 export default function App() {
-  const [started, setStarted] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -22,7 +21,6 @@ export default function App() {
 
   const handleStart = () => {
     if (!userId) return;
-    setStarted(true);
     startInterview(userId);
   };
 
@@ -50,8 +48,11 @@ export default function App() {
 
   return (
     <>
-      {!started && <StartPill onClick={handleStart} />}
-      {started && <InterviewOverlay phase={phase} onStop={stopInterview} />}
+      {phase === "IDLE" ? (
+        <StartPill onClick={handleStart} />
+      ) : (
+        <InterviewOverlay phase={phase} onStop={stopInterview} />
+      )}
     </>
   );
 }
