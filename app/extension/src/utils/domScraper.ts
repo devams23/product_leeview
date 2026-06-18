@@ -1,3 +1,75 @@
+async function getCodeFromIndexedDB(language: string): Promise<string> {
+  return new Promise((resolve) => {
+    try {
+      const request = indexedDB.open('LeetCode-problems');
+      request.onerror = () => resolve("");
+      request.onsuccess = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains('problem_code')) {
+          resolve("");
+          return;
+        }
+        
+        try {
+          const transaction = db.transaction(['problem_code'], 'readonly');
+          const store = transaction.objectStore('problem_code');
+          
+          const getAllKeysReq = store.getAllKeys();
+          const getAllReq = store.getAll();
+          
+          getAllKeysReq.onsuccess = () => {
+            getAllReq.onsuccess = () => {
+              const keys = getAllKeysReq.result as string[];
+              const values = getAllReq.result as string[];
+              
+              let latestTime = 0;
+              let latestCodeKey = "";
+              
+              for (let i = 0; i < keys.length; i++) {
+                const key = keys[i];
+                if (key.endsWith('-updated-time') && key.includes(`_${language}`)) {
+                  const time = parseInt(values[i], 10);
+                  if (time > latestTime) {
+                    latestTime = time;
+                    latestCodeKey = key.replace('-updated-time', '');
+                  }
+                }
+              }
+              
+              if (latestCodeKey) {
+                const codeIndex = keys.indexOf(latestCodeKey);
+                if (codeIndex !== -1) {
+                  resolve(values[codeIndex]);
+                  return;
+                }
+              }
+              resolve("");
+            };
+          };
+          
+          transaction.onerror = () => resolve("");
+        } catch (e) {
+          resolve("");
+        }
+      };
+    } catch (e) {
+      resolve("");
+    }
+  });
+}
+
+function getCodeFromDOM(): string {
+  try {
+    const cmContent = document.querySelector('.cm-content');
+    if (!cmContent) return "";
+    
+    const lines = Array.from(cmContent.querySelectorAll('.cm-line'));
+    return lines.map(line => line.textContent || "").join('\\n');
+  } catch (e) {
+    return "";
+  }
+}
+
 export async function getProblemData(): Promise<{
   title: string;
   slug: string;
