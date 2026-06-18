@@ -21,6 +21,8 @@ INTERVIEW_RESPONSE_SCHEMA = {
 }
 
 
+from src.services.supabase_client import get_session
+
 async def handle_interview_websocket(websocket: WebSocket, session_id: str):
     """Main WebSocket handler for a single interview session."""
     await manager.connect(websocket, session_id)
@@ -30,21 +32,38 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str):
 
     logger.info(f"[{session_id}] WebSocket connected, starting interview")
 
+    # Fetch static problem context once
+    try:
+        session_data = get_session(session_id).data
+        problem_context = {
+            "title": session_data.get("leetcode_title"),
+            "difficulty": session_data.get("problem_difficulty"),
+            "description": session_data.get("problem_description"),
+            "topics": session_data.get("problem_topics"),
+            "language": session_data.get("problem_language")
+        }
+    except Exception as e:
+        logger.error(f"[{session_id}] Failed to fetch session context: {e}")
+        problem_context = {}
+
+    conversation_history = []
+
     # Send initial INTRO message on connect
-    await send_intro(session_id, sm, llm, tts)
+    await send_intro(session_id, sm, llm, tts, problem_context, conversation_history)
 
     try:
         while True:
             data = await websocket.receive_json()
             msg_type = data.get("type")
             logger.info(f"[{session_id}] Received WS message: {msg_type}")
+            
             if msg_type == "USER_UTTERANCE":
                 text = data.get("text")
                 current_code = data.get("current_code", "")
                 logger.info(f"[{session_id}] User utterance: '{text[:100]}...' (state: {sm.current_state})")
 
-                # Build the prompt with full conversation history + state
-                messages = build_interview_prompt(sm.current_state, text, current_code)
+                # Build the prompt with static context + conversation history + dynamic code snapshot
+                messages = build_interview_prompt(sm.current_state, problem_context, conversation_history, text, current_code)
 
                 # Call LLM provider with structured output
                 logger.info(f"[{session_id}] Calling LLM...")
@@ -54,13 +73,19 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str):
                 next_state_str = parsed.get("next_state")
                 logger.info(f"[{session_id}] LLM response: '{response_text[:100]}...' next_state: {next_state_str}")
 
+                # Update conversation memory
+                user_msg_content = f"Candidate: {text}"
+                if current_code:
+                    user_msg_content += f"\n\n[Code Snapshot]:\n{current_code}"
+                conversation_history.append({"role": "user", "content": user_msg_content})
+                conversation_history.append({"role": "assistant", "content": response_text})
+
                 # Validate and transition
                 if next_state_str:
                     next_state = InterviewState(next_state_str)
                     transitioned = sm.transition(next_state)
                     if not transitioned:
                         logger.warning(f"[{session_id}] Invalid state transition: {sm.current_state} -> {next_state}, defaulting to valid transition")
-                        # Default to correct next state from current
                         valid_next = {
                             InterviewState.INTRO: InterviewState.AWAITING_CLARIFICATION,
                             InterviewState.AWAITING_CLARIFICATION: InterviewState.AWAITING_APPROACH,
@@ -105,15 +130,17 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str):
         manager.disconnect(session_id)
 
 
-async def send_intro(session_id: str, sm: StateMachine, llm, tts: DeepgramTTSClient):
+async def send_intro(session_id: str, sm: StateMachine, llm, tts: DeepgramTTSClient, problem_context: dict, conversation_history: list):
     """Send initial INTRO prompt and stream TTS response."""
     logger.info(f"[{session_id}] Generating intro...")
-    messages = build_interview_prompt(InterviewState.INTRO, "", "")
+    messages = build_interview_prompt(InterviewState.INTRO, problem_context, conversation_history, "", "")
 
     parsed = await llm.generate_structured(messages, INTERVIEW_RESPONSE_SCHEMA)
     response_text = parsed["response_text"]
     next_state_str = parsed.get("next_state")
     logger.info(f"[{session_id}] Intro text: '{response_text[:100]}...'")
+
+    conversation_history.append({"role": "assistant", "content": response_text})
 
     if next_state_str:
         next_state = InterviewState(next_state_str)
@@ -135,19 +162,38 @@ async def send_intro(session_id: str, sm: StateMachine, llm, tts: DeepgramTTSCli
     logger.info(f"[{session_id}] Sent intro AUDIO_FINISHED")
 
 
-def build_interview_prompt(state: InterviewState, user_text: str, current_code: str) -> list[dict]:
-    """Construct the LLM prompt based on current state."""
+def build_interview_prompt(state: InterviewState, problem_context: dict, conversation_history: list, user_text: str = "", current_code: str = "") -> list[dict]:
+    """Construct the LLM prompt based on current state, static problem context, and conversation history."""
+    system_content = (
+        f"You are a senior software engineer conducting a technical interview. "
+        f"Current phase: {state.value}. "
+        f"Respond naturally as an interviewer. Keep your responses conversational and concise.\n"
+        f"Also return a 'next_state' field indicating where the conversation should go.\n\n"
+        f"--- PROBLEM CONTEXT ---\n"
+        f"Title: {problem_context.get('title')}\n"
+        f"Difficulty: {problem_context.get('difficulty')}\n"
+        f"Language: {problem_context.get('language')}\n"
+        f"Topics: {', '.join(problem_context.get('topics') or [])}\n"
+        f"Description:\n{problem_context.get('description')}\n"
+        f"-----------------------\n"
+    )
+
     system_prompt = {
         "role": "system",
-        "content": (
-            f"You are a senior software engineer conducting a technical interview. "
-            f"Current phase: {state.value}. "
-            f"Respond naturally as an interviewer. "
-            f"Also return a 'next_state' field indicating where the conversation should go."
-        ),
+        "content": system_content,
     }
-    user_message = {
-        "role": "user",
-        "content": f"Candidate: {user_text}\n\nCurrent code:\n{current_code}",
-    }
-    return [system_prompt, user_message]
+    
+    messages = [system_prompt]
+    messages.extend(conversation_history)
+    
+    if user_text:
+        user_content = f"Candidate: {user_text}"
+        if current_code:
+            user_content += f"\n\n[Current Code Snapshot]:\n{current_code}"
+        
+        messages.append({
+            "role": "user",
+            "content": user_content,
+        })
+
+    return messages

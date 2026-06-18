@@ -70,7 +70,15 @@ export function useInterview() {
     try {
       const problem = await getProblemData();
       console.log(`[Extension] Problem: ${problem.title} (${problem.slug})`);
-      const sessionId = await createSession(userId, problem.slug, problem.title, problem.difficulty);
+      const sessionId = await createSession(
+        userId, 
+        problem.slug, 
+        problem.title, 
+        problem.difficulty,
+        problem.description,
+        problem.topics,
+        problem.language
+      );
       console.log(`[Extension] Session created: ${sessionId}`);
 
       const ws = new InterviewWebSocket();
@@ -105,11 +113,17 @@ export function useInterview() {
 
       const stt = new DeepgramSTT();
       console.log("[Extension] Connecting to Deepgram STT...");
-      await stt.connect((text, isFinal) => {
+      await stt.connect(async (text, isFinal) => {
         console.log(`[Extension] STT transcript: "${text}" (final: ${isFinal})`);
         if (isFinal) {
-          ws.send({ type: "USER_UTTERANCE", text, current_code: "" });
-          console.log(`[Extension] Sent USER_UTTERANCE to backend`);
+          const currentData = await getProblemData();
+          ws.send({ 
+            type: "USER_UTTERANCE", 
+            text, 
+            current_code: currentData.code,
+            language: currentData.language 
+          });
+          console.log(`[Extension] Sent USER_UTTERANCE to backend with latest code snapshot`);
         }
       });
       sttRef.current = stt;

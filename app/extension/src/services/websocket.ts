@@ -35,11 +35,27 @@ export class InterviewWebSocket {
   }
 }
 
-export async function createSession(userId: string, slug: string, title: string, difficulty: string) {
+export async function createSession(
+  userId: string, 
+  slug: string, 
+  title: string, 
+  difficulty: string,
+  description: string = "",
+  topics: string[] = [],
+  language: string = "python"
+) {
   const res = await fetch(`${BACKEND_URL}/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, leetcode_slug: slug, leetcode_title: title, problem_difficulty: difficulty }),
+    body: JSON.stringify({ 
+      user_id: userId, 
+      leetcode_slug: slug, 
+      leetcode_title: title, 
+      problem_difficulty: difficulty,
+      problem_description: description,
+      problem_topics: topics,
+      problem_language: language
+    }),
   });
   const data = await res.json();
   return data.session_id as string;

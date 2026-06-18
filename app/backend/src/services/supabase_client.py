@@ -6,15 +6,27 @@ settings = get_settings()
 supabase: Client = create_client(settings.supabase_url, settings.supabase_service_role_key)
 
 
-def create_session(user_id: str, leetcode_slug: str, leetcode_title: str, problem_difficulty: str):
+def create_session(
+    user_id: str, 
+    leetcode_slug: str, 
+    leetcode_title: str, 
+    problem_difficulty: str,
+    problem_description: str = "",
+    problem_topics: list[str] = None,
+    problem_language: str = "python"
+):
     return supabase.table("interview_sessions").insert({
         "user_id": user_id,
         "leetcode_slug": leetcode_slug,
         "leetcode_title": leetcode_title,
         "problem_difficulty": problem_difficulty,
+        "problem_description": problem_description,
+        "problem_topics": problem_topics or [],
+        "problem_language": problem_language,
     }).execute()
 
-
+def get_session(session_id: str):
+    return supabase.table("interview_sessions").select("*").eq("id", session_id).single().execute()
 def log_transcript(session_id: str, speaker: str, text: str, state_at_time: str):
     return supabase.table("transcript_logs").insert({
         "session_id": session_id,

@@ -43,6 +43,9 @@ class CreateSessionRequest(BaseModel):
     leetcode_slug: str
     leetcode_title: str
     problem_difficulty: str = "Medium"
+    problem_description: str = ""
+    problem_topics: list[str] = []
+    problem_language: str = "python"
 
 
 class CreateSessionResponse(BaseModel):
@@ -61,6 +64,9 @@ async def create_interview_session(req: CreateSessionRequest):
         leetcode_slug=req.leetcode_slug,
         leetcode_title=req.leetcode_title,
         problem_difficulty=req.problem_difficulty,
+        problem_description=req.problem_description,
+        problem_topics=req.problem_topics,
+        problem_language=req.problem_language,
     )
     session_id = result.data[0]["id"]
     return CreateSessionResponse(session_id=session_id)
