@@ -5,18 +5,18 @@
   <p><b>Transforming every LeetCode problem into a real-time, AI-driven mock interview.</b></p>
 </div>
 
-LeeView is the definitive copilot for technical interview preparation. We inject a seamless, glassmorphism overlay directly into your LeetCode environment, capturing your voice and code in real-time. Powered by ultra-low latency speech-to-text and LLM orchestration, LeeView dynamically guides you through a full technical interview—from clarifying the problem to writing the code and walking through the solution—giving you a comprehensive debrief the moment you finish. Practice the way you'll actually perform.
+LeeView is the definitive copilot for technical interview preparation. We inject a seamless, unobtrusive overlay directly into your LeetCode environment, capturing your voice and code in real-time. Powered by ultra-low latency speech-to-text and LLM orchestration, LeeView dynamically guides you through a full technical interview—from clarifying the problem to writing the code and walking through the solution—giving you a comprehensive debrief the moment you finish. Practice the way you'll actually perform.
 
 ---
 
-## 🏗️ Architecture & Data Flow
+## Architecture & Data Flow
 
 LeeView operates on a lightning-fast asynchronous architecture designed for real-time human-AI interaction. The Chrome Extension acts as the edge client, continuously syncing editor state and voice data to our FastAPI backend over WebSockets.
 
 ```mermaid
 graph TD
     subgraph Browser["Chrome Extension (Client)"]
-        UI["Glassmorphism UI Overlay"]
+        UI["Minimal UI Overlay"]
         STT["Microphone & Deepgram STT"]
         Editor["CodeMirror 6 Extractor"]
     end
@@ -58,7 +58,7 @@ graph TD
     Auth --> Browser
 ```
 
-## 🔌 External Services
+## External Services
 
 LeeView leverages the best-in-class AI infrastructure to deliver conversational latency:
 - **[Deepgram](https://deepgram.com/)**: Industry-leading Speech-to-Text (STT) and Text-to-Speech (TTS) models.
@@ -67,7 +67,7 @@ LeeView leverages the best-in-class AI infrastructure to deliver conversational 
 
 ---
 
-## 🚀 Quick Start (Local Setup)
+## Quick Start (Local Setup)
 
 To spin up the entire stack locally, ensure you have Python 3.11+, Node.js 18+, and accounts with Supabase, Deepgram, and NVIDIA NIM.
 
@@ -133,7 +133,7 @@ npm run build
 2. Enable **Developer mode**.
 3. Click **Load unpacked** and select the `app/extension/dist/` directory.
 
-### 🎯 Putting it all together
+### Putting it all together
 1. Open the dashboard at `http://localhost:5173` and authenticate with Google.
 2. The extension's auth bridge instantly captures your session.
 3. Navigate to any LeetCode problem. The "Start Mock Interview" widget will appear. Click it, and practice like it's the real deal.
