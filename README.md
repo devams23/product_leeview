@@ -1,6 +1,6 @@
 <div align="center">
   <!-- Use a clean placeholder logo for now -->
-  <img src="https://raw.githubusercontent.com/devams23/product_leeview/main/logo.png" onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Google_Material_Design_Logo.svg/120px-Google_Material_Design_Logo.svg.png'" alt="LeeView Logo" width="100" />
+  <img src="logo.png" onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Google_Material_Design_Logo.svg/120px-Google_Material_Design_Logo.svg.png'" alt="LeeView Logo" width="100" />
   <h1>LeeView</h1>
   <p><b>Transforming every LeetCode problem into a real-time, AI-driven mock interview.</b></p>
 </div>
@@ -21,28 +21,28 @@ flowchart TB
     classDef external fill:#f0fdf4,stroke:#22c55e,stroke-width:2px,color:#14532d,rx:5px,ry:5px
     classDef db fill:#fff7ed,stroke:#f97316,stroke-width:2px,color:#7c2d12,rx:5px,ry:5px
 
-    subgraph Client["🌐 Edge (Chrome Extension)"]
+    subgraph Client["Edge (Chrome Extension)"]
         direction TB
         UI["Minimal UI Overlay<br/><small>Injected over LeetCode</small>"]:::edge
         Mic["Web Audio API<br/><small>Captures Voice</small>"]:::edge
         Code["CodeMirror 6 / IndexedDB<br/><small>Live Source Snapshot</small>"]:::edge
     end
 
-    subgraph Server["🚀 Orchestrator (FastAPI Backend)"]
+    subgraph Server["Orchestrator (FastAPI Backend)"]
         direction TB
         WS["WebSocket Gateway<br/><small>Bi-directional Streaming</small>"]:::backend
         SM["State Machine<br/><small>Manages Interview Lifecycle</small>"]:::backend
         Context["Prompt Builder<br/><small>Assembles Context Array</small>"]:::backend
     end
 
-    subgraph AI["🧠 AI Infrastructure"]
+    subgraph AI["AI Infrastructure"]
         direction LR
         STT["Deepgram STT<br/><small>Real-time Transcription</small>"]:::external
         LLM["NVIDIA NIM (Llama 3)<br/><small>High-Throughput Inference</small>"]:::external
         TTS["Deepgram TTS<br/><small>Aura Voice Synthesis</small>"]:::external
     end
 
-    subgraph Persistence["💾 Data Layer"]
+    subgraph Persistence["Data Layer"]
         direction LR
         DB[("Supabase (PostgreSQL)<br/><small>Session & Debrief Storage</small>")][::db]
         Auth["Google OAuth<br/><small>Identity Management</small>"]:::db
