@@ -116,67 +116,18 @@ export async function getProblemData(): Promise<{
   // Clean up description formatting
   description = description.replace(/\s+/g, ' ').trim();
 
-  // 6. Code and Language (via Script Injection to access window.monaco in main context)
-  const extData = await new Promise<{ code: string; language: string }>((resolve) => {
-    const listener = (event: MessageEvent) => {
-      if (event.data && event.data.type === "LEE_VIEW_CODE_RESPONSE") {
-        window.removeEventListener("message", listener);
-        resolve({
-          code: event.data.code || "",
-          language: event.data.language || "python"
-        });
-      }
-    };
-    window.addEventListener("message", listener);
+  // 6. Code and Language
+  let language = window.localStorage.getItem("global_lang") || "python";
+  // Remove JSON string quotes if present
+  language = language.replace(/^"|"$/g, '');
 
-    try {
-      const script = document.createElement("script");
-      script.textContent = `
-        (function() {
-          try {
-            let extractedCode = "";
-            let extractedLang = "python";
-            
-            if (window.monaco && window.monaco.editor) {
-              const editors = window.monaco.editor.getEditors();
-              if (editors && editors.length > 0) {
-                extractedCode = editors[0].getValue();
-                const model = editors[0].getModel();
-                if (model) {
-                  extractedLang = model.getLanguageId() || extractedLang;
-                }
-              }
-            }
-            
-            window.postMessage({
-              type: "LEE_VIEW_CODE_RESPONSE",
-              code: extractedCode,
-              language: extractedLang
-            }, "*");
-          } catch(e) {
-            window.postMessage({
-              type: "LEE_VIEW_CODE_RESPONSE",
-              code: "",
-              language: "python"
-            }, "*");
-          }
-        })();
-      `;
-      (document.head || document.documentElement).appendChild(script);
-      script.remove(); // Clean up immediately after execution
-    } catch (e) {
-      // Fallback if script injection is blocked (e.g., CSP)
-      resolve({ code: "", language: "python" });
-    }
-    
-    // Timeout fallback just in case the message never arrives
-    setTimeout(() => {
-      window.removeEventListener("message", listener);
-      resolve({ code: "", language: "python" });
-    }, 1500);
-  });
+  let code = await getCodeFromIndexedDB(language);
+  if (!code) {
+    console.log("[Extension] IndexedDB code not found or empty, falling back to DOM scraping");
+    code = getCodeFromDOM();
+  }
 
-  const data = { title, slug, description, difficulty, code: extData.code, language: extData.language, topics };
+  const data = { title, slug, description, difficulty, code, language, topics };
   console.log("[Extension] Scraped Problem Data:", data);
 
   return data;
