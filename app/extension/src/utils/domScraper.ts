@@ -9,22 +9,22 @@ async function getCodeFromIndexedDB(language: string): Promise<string> {
           resolve("");
           return;
         }
-        
+
         try {
           const transaction = db.transaction(['problem_code'], 'readonly');
           const store = transaction.objectStore('problem_code');
-          
+
           const getAllKeysReq = store.getAllKeys();
           const getAllReq = store.getAll();
-          
+
           getAllKeysReq.onsuccess = () => {
             getAllReq.onsuccess = () => {
               const keys = getAllKeysReq.result as string[];
               const values = getAllReq.result as string[];
-              
+
               let latestTime = 0;
               let latestCodeKey = "";
-              
+
               for (let i = 0; i < keys.length; i++) {
                 const key = keys[i];
                 if (key.endsWith('-updated-time') && key.includes(`_${language}`)) {
@@ -35,9 +35,10 @@ async function getCodeFromIndexedDB(language: string): Promise<string> {
                   }
                 }
               }
-              
+
               if (latestCodeKey) {
                 const codeIndex = keys.indexOf(latestCodeKey);
+                console.log(codeIndex);
                 if (codeIndex !== -1) {
                   resolve(values[codeIndex]);
                   return;
@@ -46,7 +47,7 @@ async function getCodeFromIndexedDB(language: string): Promise<string> {
               resolve("");
             };
           };
-          
+
           transaction.onerror = () => resolve("");
         } catch (e) {
           resolve("");
@@ -62,7 +63,7 @@ function getCodeFromDOM(): string {
   try {
     const cmContent = document.querySelector('.cm-content');
     if (!cmContent) return "";
-    
+
     const lines = Array.from(cmContent.querySelectorAll('.cm-line'));
     return lines.map(line => line.textContent || "").join('\\n');
   } catch (e) {
@@ -117,7 +118,7 @@ export async function getProblemData(): Promise<{
   description = description.replace(/\s+/g, ' ').trim();
 
   // 6. Code and Language
-  let language = window.localStorage.getItem("global_lang") || "python";
+  let language = window.localStorage.getItem("global_lang")?.toString() || "python";
   // Remove JSON string quotes if present
   language = language.replace(/^"|"$/g, '');
 
