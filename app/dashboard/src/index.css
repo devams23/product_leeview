@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bgBase text-textPrimary antialiased;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-bgPanel border border-borderGlass outline outline-1 outline-outlineDepth rounded-panel backdrop-blur-[18px];
+  }
+  
+  .glass-inner {
+    @apply bg-bgPanelInner border border-borderGlassInner rounded-inner;
+  }
+}
