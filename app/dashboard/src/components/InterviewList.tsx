@@ -3,42 +3,40 @@ import { useInterviews } from "../hooks/useInterviews";
 export function InterviewList() {
   const { interviews, loading } = useInterviews();
 
-  if (loading) return <div style={{ color: "rgba(255,255,255,0.45)", fontFamily: "monospace", fontSize: "12px" }}>Loading...</div>;
+  if (loading) return <div className="text-textSecondary font-mono text-xs">Loading...</div>;
 
   return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.07)",
-        border: "1px solid rgba(255,255,255,0.12)",
-        outline: "1px solid rgba(0,0,0,0.3)",
-        borderRadius: "20px",
-        padding: "20px",
-        backdropFilter: "blur(18px)",
-        WebkitBackdropFilter: "blur(18px)",
-      }}
-    >
-      <h2 style={{ fontSize: "11px", fontWeight: 500, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 16px" }}>Past Interviews</h2>
-      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-        {interviews.map((i) => (
-          <li
-            key={i.id}
-            style={{
-              padding: "10px 0",
-              borderBottom: "1px solid rgba(255,255,255,0.07)",
-              height: "40px",
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
+    <div className="glass-panel w-full">
+      <div className="px-5 py-4 border-b border-borderGlassInner bg-bgPanelInner rounded-t-inner">
+        <h2 className="text-[11px] font-medium text-textSecondary uppercase tracking-[0.1em] m-0">Past Interviews</h2>
+      </div>
+      <div className="flex flex-col">
+        {interviews.length === 0 ? (
+          <div className="p-8 text-center text-textMuted font-mono text-sm">
+            No interviews found. Try starting one from the Chrome Extension.
+          </div>
+        ) : (
+          interviews.map((i) => (
             <a
+              key={i.id}
               href={`/session/${i.id}`}
-              style={{ color: "rgba(255,255,255,0.88)", textDecoration: "none", fontSize: "13px" }}
+              className="group flex items-center justify-between px-5 py-3 border-b border-borderGlassInner h-[50px] decoration-none hover:bg-bgPanelInner border-l-2 border-l-transparent hover:border-l-borderGlassStrong transition-colors last:border-b-0"
             >
-              {i.leetcode_title} — {i.status}
+              <div className="flex flex-col gap-1">
+                <span className="text-[13px] text-textPrimary font-sans">{i.leetcode_title || "Untitled Problem"}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-textMuted font-mono bg-bgInput px-2 py-1 rounded-pill uppercase">
+                  {i.status}
+                </span>
+                <span className="text-[11px] text-textSecondary font-mono min-w-[120px] text-right">
+                  {new Date(i.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              </div>
             </a>
-          </li>
-        ))}
-      </ul>
+          ))
+        )}
+      </div>
     </div>
   );
 }
