@@ -27,6 +27,6 @@
   ],
 
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; connect-src 'self' wss://api.deepgram.com;"
+    "extension_pages": "script-src 'self'; connect-src 'self' wss://api.deepgram.com ws://localhost:8000 http://localhost:8000;"
   }
 }
