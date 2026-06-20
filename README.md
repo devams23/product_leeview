@@ -42,7 +42,7 @@ flowchart TB
         TTS["Deepgram TTS<br/><small>Aura Voice Synthesis</small>"]:::external
     end
 
-    subgraph Persistence["💾 Data Layer"]
+    subgraph Persistence["Data Layer"]
         direction LR
         DB[("Supabase (PostgreSQL)<br/><small>Session & Debrief Storage</small>")]:::db
         Auth["Google OAuth<br/><small>Identity Management</small>"]:::db
