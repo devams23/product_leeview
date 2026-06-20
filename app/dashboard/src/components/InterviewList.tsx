@@ -30,7 +30,7 @@ export function InterviewList() {
                   {i.status}
                 </span>
                 <span className="text-[11px] text-textSecondary font-mono min-w-[120px] text-right">
-                  {i.problem_language} "dssdadssd"
+                  {i.started_at ? new Date(i.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "Not Started"}
                 </span>
               </div>
             </a>
