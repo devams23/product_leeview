@@ -30,7 +30,7 @@ export function InterviewList() {
                   {i.status}
                 </span>
                 <span className="text-[11px] text-textSecondary font-mono min-w-[120px] text-right">
-                  {new Date(i.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {i.problem_language} "dssdadssd"
                 </span>
               </div>
             </a>
