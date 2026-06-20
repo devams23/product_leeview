@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
     define: {
       "import.meta.env.VITE_DEEPGRAM_API_KEY": JSON.stringify(env.VITE_DEEPGRAM_API_KEY),
       "DEEPGRAM_API_KEY": JSON.stringify(env.VITE_DEEPGRAM_API_KEY),
+      "import.meta.env.VITE_DASHBOARD_URL": JSON.stringify(env.VITE_DASHBOARD_URL || "http://localhost:5173"),
     },
     build: {
       rollupOptions: {
