@@ -16,5 +16,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("LeeView extension installed.");
+  // console.log("LeeView extension installed.");
 });

@@ -64,12 +64,12 @@ export function useInterview() {
   }, []);
 
   const startInterview = useCallback(async (userId: string) => {
-    console.log("[Extension] Starting interview...");
+    // console.log("[Extension] Starting interview...");
     setPhase("CONNECTING");
 
     try {
       const problem = await getProblemData();
-      console.log(`[Extension] Problem: ${problem.title} (${problem.slug})`);
+      // console.log(`[Extension] Problem: ${problem.title} (${problem.slug})`);
       const sessionId = await createSession(
         userId, 
         problem.slug, 
@@ -79,7 +79,7 @@ export function useInterview() {
         problem.topics,
         problem.language
       );
-      console.log(`[Extension] Session created: ${sessionId}`);
+      // console.log(`[Extension] Session created: ${sessionId}`);
 
       const ws = new InterviewWebSocket();
       ws.connect(sessionId, (msg) => {
@@ -112,9 +112,9 @@ export function useInterview() {
       wsRef.current = ws;
 
       const stt = new DeepgramSTT();
-      console.log("[Extension] Connecting to Deepgram STT...");
+      // console.log("[Extension] Connecting to Deepgram STT...");
       await stt.connect(async (text, isFinal) => {
-        console.log(`[Extension] STT transcript: "${text}" (final: ${isFinal})`);
+        // console.log(`[Extension] STT transcript: "${text}" (final: ${isFinal})`);
         if (isFinal) {
           const currentData = await getProblemData();
           ws.send({ 
@@ -123,13 +123,13 @@ export function useInterview() {
             current_code: currentData.code,
             language: currentData.language 
           });
-          console.log(`[Extension] Sent USER_UTTERANCE to backend with latest code snapshot`);
+          // console.log(`[Extension] Sent USER_UTTERANCE to backend with latest code snapshot`);
         }
       });
       sttRef.current = stt;
 
       navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-        console.log("[Extension] Microphone access granted");
+        // console.log("[Extension] Microphone access granted");
         streamRef.current = stream;
 
         // Initialize AudioContext on user interaction
@@ -146,16 +146,16 @@ export function useInterview() {
         mediaRecorderRef.current = mediaRecorder;
         mediaRecorder.ondataavailable = (event) => {
           if (event.data.size > 0 && sttRef.current) {
-            console.log(`[Extension] MediaRecorder chunk: ${event.data.size} bytes`);
+            // console.log(`[Extension] MediaRecorder chunk: ${event.data.size} bytes`);
             sttRef.current.sendAudio(event.data);
           }
         };
         mediaRecorder.start(250);
-        console.log("[Extension] MediaRecorder started (250ms intervals)");
+        // console.log("[Extension] MediaRecorder started (250ms intervals)");
       });
 
       setPhase("LISTENING"); // Start in LISTENING phase, waiting for first AUDIO_CHUNK to switch to SPEAKING
-      console.log("[Extension] Phase set to SPEAKING");
+      // console.log("[Extension] Phase set to SPEAKING");
     } catch (err) {
       console.error("[Extension] Failed to start interview:", err);
       setPhase("ERROR");
@@ -163,7 +163,7 @@ export function useInterview() {
   }, [handleAudioChunk]);
 
   const stopInterview = useCallback(() => {
-    console.log("[Extension] Stopping interview...");
+    // console.log("[Extension] Stopping interview...");
     wsRef.current?.send({ type: "INTERRUPT" });
     wsRef.current?.disconnect();
     wsRef.current = null;
@@ -196,13 +196,13 @@ export function useInterview() {
 
     setPhase((currentPhase) => {
       if (currentPhase !== "DEBRIEF_READY" && currentPhase !== "IDLE") {
-        console.log("[Extension] Transitioning to DEBRIEF_READY...");
+        // console.log("[Extension] Transitioning to DEBRIEF_READY...");
         setTimeout(() => {
           setPhase("DEBRIEF_READY");
         }, 1500);
         return "PROCESSING";
       }
-      console.log("[Extension] Interview stopped, phase set to IDLE");
+      // console.log("[Extension] Interview stopped, phase set to IDLE");
       return "IDLE";
     });
   }, []);

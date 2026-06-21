@@ -38,7 +38,7 @@ async function getCodeFromIndexedDB(language: string): Promise<string> {
 
               if (latestCodeKey) {
                 const codeIndex = keys.indexOf(latestCodeKey);
-                console.log(codeIndex);
+                // console.log(codeIndex);
                 if (codeIndex !== -1) {
                   resolve(values[codeIndex]);
                   return;
@@ -124,12 +124,12 @@ export async function getProblemData(): Promise<{
 
   let code = await getCodeFromIndexedDB(language);
   if (!code) {
-    console.log("[Extension] IndexedDB code not found or empty, falling back to DOM scraping");
+    // console.log("[Extension] IndexedDB code not found or empty, falling back to DOM scraping");
     code = getCodeFromDOM();
   }
 
   const data = { title, slug, description, difficulty, code, language, topics };
-  console.log("[Extension] Scraped Problem Data:", data);
+  // console.log("[Extension] Scraped Problem Data:", data);
 
   return data;
 }
