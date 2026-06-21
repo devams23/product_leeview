@@ -38,19 +38,19 @@ export class DeepgramSTT {
 
         this.socket.onopen = () => {
           clearTimeout(timeoutId);
-          console.log("[DeepgramSTT] Connected");
+          // console.log("[DeepgramSTT] Connected");
           resolve(); // Resolve the connection promise here safely
         };
 
         this.socket.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            console.log("[DeepgramSTT] Message:", data.type || "transcript");
+            // console.log("[DeepgramSTT] Message:", data.type || "transcript");
             const alt = data.channel?.alternatives?.[0];
             const transcript = alt?.transcript;
             const isFinal = data.is_final;
             if (transcript) {
-              console.log(`[DeepgramSTT] Transcript: "${transcript}" (final: ${isFinal})`);
+              // console.log(`[DeepgramSTT] Transcript: "${transcript}" (final: ${isFinal})`);
               onTranscript(transcript, isFinal);
             }
           } catch (err) {
@@ -59,7 +59,7 @@ export class DeepgramSTT {
         };
 
         this.socket.onclose = (e: CloseEvent) => {
-          console.log("[DeepgramSTT] Closed:", e.code, e.reason);
+          // console.log("[DeepgramSTT] Closed:", e.code, e.reason);
         };
 
         this.socket.onerror = (e: Event) => {
@@ -78,7 +78,7 @@ export class DeepgramSTT {
   sendAudio(chunk: ArrayBuffer | Blob) {
     if (this.socket?.readyState === WebSocket.OPEN) {
       const size = chunk instanceof Blob ? chunk.size : chunk.byteLength;
-      console.log(`[DeepgramSTT] Sending audio: ${size} bytes`);
+      // console.log(`[DeepgramSTT] Sending audio: ${size} bytes`);
       this.socket.send(chunk);
     } else {
       console.warn("[DeepgramSTT] Cannot send audio, socket not open:", this.socket?.readyState);
@@ -86,7 +86,7 @@ export class DeepgramSTT {
   }
 
   disconnect() {
-    console.log("[DeepgramSTT] Disconnecting...");
+    // console.log("[DeepgramSTT] Disconnecting...");
     if (this.socket) {
       // Deepgram prefers an empty JSON close message to end streams cleanly
       if (this.socket.readyState === WebSocket.OPEN) {
