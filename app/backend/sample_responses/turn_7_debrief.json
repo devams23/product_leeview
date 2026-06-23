@@ -1,4 +1,17 @@
 {
-  "response_text": "Your interview is complete! Here's your debrief: You demonstrated strong problem-solving skills and clear communication. Your approach was logical and your code was clean. Areas for improvement: consider discussing more edge cases upfront and optimizing space complexity. Overall rating: Strong Hire.",
-  "next_state": "COMPLETED"
+  "approach_score": 8.2,
+  "communication_score": 6.5,
+  "code_correctness_score": 4.1,
+  "code_quality_score": 7.8,
+  "time_management_score": 7.0,
+  "overall_score": 7.0,
+  "actionable_feedback": [
+    "Jumped to code early \u2014 no clarification on constraints before optimizing."
+  ],
+  "similar_problems": [],
+  "summary": "You demonstrated good problem-solving but need to clarify constraints.",
+  "real_world_scenario": "Designing a high-throughput logging system",
+  "real_world_naive_approach": "Writing directly to disk for every log",
+  "real_world_why_wins": "Batching and async I/O reduces disk contention",
+  "senior_follow_up": "How would you handle node failures?"
 }
