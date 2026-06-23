@@ -115,6 +115,10 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str):
                 await manager.send_to_session(session_id, {"type": "AUDIO_FINISHED"})
                 logger.info(f"[{session_id}] Sent AUDIO_FINISHED")
 
+                if sm.current_state == InterviewState.GENERATING_DEBRIEF:
+                    logger.info(f"[{session_id}] Reached GENERATING_DEBRIEF naturally")
+                    break
+
             elif msg_type == "AUDIO_FINISHED_ACK":
                 logger.debug(f"[{session_id}] Received AUDIO_FINISHED_ACK")
 
@@ -126,8 +130,36 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str):
     except WebSocketDisconnect:
         logger.info(f"[{session_id}] WebSocket disconnected")
         manager.disconnect(session_id)
-    finally:
-        manager.disconnect(session_id)
+        return
+
+    if sm.current_state == InterviewState.GENERATING_DEBRIEF:
+        try:
+            logger.info(f"[{session_id}] Generating debrief...")
+            from src.debrief.engine import DebriefEngine
+            engine = DebriefEngine()
+            
+            interview_data = {
+                "title": problem_context.get("title", ""),
+                "difficulty": problem_context.get("difficulty", ""),
+                "description": problem_context.get("description", ""),
+                "topics": problem_context.get("topics", []),
+                "language": problem_context.get("language", ""),
+                "transcript": json.dumps(conversation_history),
+                "code_snapshots": "N/A", 
+                "time_per_state": "N/A",
+                "state_transitions": "N/A",
+                "algorithm": problem_context.get("topics", ["Algorithm"])[0] if problem_context.get("topics") else "Algorithm"
+            }
+            debrief_result = await engine.run(interview_data)
+            await manager.send_to_session(session_id, {
+                "type": "DEBRIEF_READY",
+                "data": debrief_result
+            })
+            logger.info(f"[{session_id}] Sent DEBRIEF_READY")
+        except Exception as e:
+            logger.error(f"[{session_id}] Failed to generate debrief: {e}")
+
+    manager.disconnect(session_id)
 
 
 async def send_intro(session_id: str, sm: StateMachine, llm, tts: DeepgramTTSClient, problem_context: dict, conversation_history: list):
