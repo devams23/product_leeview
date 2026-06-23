@@ -22,6 +22,7 @@ function hexToBytes(hexData: string): Uint8Array {
 
 export function useInterview() {
   const [phase, setPhase] = useState<InterviewPhase>("IDLE");
+  const [debriefData, setDebriefData] = useState<any>(null);
   const wsRef = useRef<InterviewWebSocket | null>(null);
   const sttRef = useRef<DeepgramSTT | null>(null);
 
@@ -106,6 +107,7 @@ export function useInterview() {
             setPhase("LISTENING");
           }
         } else if (msg.type === "DEBRIEF_READY") {
+          setDebriefData(msg.data);
           setPhase("DEBRIEF_READY");
         }
       });
@@ -165,8 +167,9 @@ export function useInterview() {
   const stopInterview = useCallback(() => {
     // console.log("[Extension] Stopping interview...");
     wsRef.current?.send({ type: "INTERRUPT" });
-    wsRef.current?.disconnect();
-    wsRef.current = null;
+    // Keep ws open to receive DEBRIEF_READY
+    // wsRef.current?.disconnect();
+    // wsRef.current = null;
     sttRef.current?.disconnect();
     sttRef.current = null;
 
@@ -196,16 +199,15 @@ export function useInterview() {
 
     setPhase((currentPhase) => {
       if (currentPhase !== "DEBRIEF_READY" && currentPhase !== "IDLE") {
-        // console.log("[Extension] Transitioning to DEBRIEF_READY...");
-        setTimeout(() => {
-          setPhase("DEBRIEF_READY");
-        }, 1500);
+        // Wait for backend DEBRIEF_READY message
         return "PROCESSING";
       }
-      // console.log("[Extension] Interview stopped, phase set to IDLE");
+      // If closing from debrief screen
+      wsRef.current?.disconnect();
+      wsRef.current = null;
       return "IDLE";
     });
   }, []);
 
-  return { phase, startInterview, stopInterview };
+  return { phase, debriefData, startInterview, stopInterview };
 }
