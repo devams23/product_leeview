@@ -5,9 +5,24 @@ export function DebriefCard({ debrief }: { debrief: any }) {
       
       <div>
         <h3 className="text-[11px] font-medium text-textSecondary uppercase tracking-[0.1em] mb-2">Real-World Scenario</h3>
-        <p className="text-sm text-textSecondary font-mono leading-relaxed m-0 p-4 glass-inner">
+        <p className="text-sm text-textSecondary font-mono leading-relaxed m-0 p-4 glass-inner mb-2">
           {debrief.real_world_scenario || "No scenario available."}
         </p>
+        {debrief.real_world_naive_approach && (
+          <p className="text-xs text-textMuted font-mono leading-relaxed m-0 px-4 mb-2">
+            <span className="text-textSecondary">Naive Approach:</span> {debrief.real_world_naive_approach}
+          </p>
+        )}
+        {debrief.real_world_why_wins && (
+          <p className="text-xs text-textMuted font-mono leading-relaxed m-0 px-4 mb-2">
+            <span className="text-textSecondary">Why this algorithm wins:</span> {debrief.real_world_why_wins}
+          </p>
+        )}
+        {debrief.senior_follow_up && (
+          <p className="text-xs text-textMuted font-mono leading-relaxed m-0 px-4 pb-2">
+            <span className="text-textSecondary">Senior Follow-up:</span> {debrief.senior_follow_up}
+          </p>
+        )}
       </div>
 
       <div>
