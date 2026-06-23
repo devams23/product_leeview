@@ -7,7 +7,7 @@ export default function App() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const { phase, startInterview, stopInterview } = useInterview();
+  const { phase, debriefData, startInterview, stopInterview } = useInterview();
 
   useEffect(() => {
     chrome.runtime.sendMessage({ type: "GET_AUTH" }, (result) => {
@@ -51,7 +51,7 @@ export default function App() {
       {phase === "IDLE" ? (
         <StartPill onClick={handleStart} />
       ) : (
-        <InterviewOverlay phase={phase} onStop={stopInterview} />
+        <InterviewOverlay phase={phase} debriefData={debriefData} onStop={stopInterview} />
       )}
     </>
   );

@@ -10,9 +10,11 @@ function formatTime(seconds: number) {
 
 export function InterviewOverlay({
   phase,
+  debriefData,
   onStop,
 }: {
   phase: string;
+  debriefData?: any;
   onStop: () => void;
 }) {
   const { offset, handleMouseDown, isDragging } = useDraggable();
@@ -119,24 +121,30 @@ export function InterviewOverlay({
           <div style={{ background: "#1e1e1e", borderRadius: "14px", margin: "8px 0 0", padding: "10px 12px 12px" }}>
             <div style={{ display: "flex", gap: "5px", marginBottom: "8px" }}>
               <div style={{ flex: 1, background: "#252525", borderRadius: "8px", padding: "7px 4px", textAlign: "center", border: "1px solid #2e2e2e" }}>
-                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>8.2</div>
+                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>{debriefData?.approach_score ?? "8.2"}</div>
                 <div style={{ fontSize: "10px", color: "#606068", fontFamily: "monospace", marginTop: "3px" }}>Approach</div>
               </div>
               <div style={{ flex: 1, background: "#252525", borderRadius: "8px", padding: "7px 4px", textAlign: "center", border: "1px solid #2e2e2e" }}>
-                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>6.5</div>
+                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>{debriefData?.communication_score ?? "6.5"}</div>
                 <div style={{ fontSize: "10px", color: "#606068", fontFamily: "monospace", marginTop: "3px" }}>Clarity</div>
               </div>
               <div style={{ flex: 1, background: "#252525", borderRadius: "8px", padding: "7px 4px", textAlign: "center", border: "1px solid #2e2e2e" }}>
-                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>4.1</div>
+                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>{debriefData?.code_correctness_score ?? "4.1"}</div>
                 <div style={{ fontSize: "10px", color: "#606068", fontFamily: "monospace", marginTop: "3px" }}>Edge cases</div>
               </div>
               <div style={{ flex: 1, background: "#252525", borderRadius: "8px", padding: "7px 4px", textAlign: "center", border: "1px solid #2e2e2e" }}>
-                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>7.8</div>
+                <div style={{ fontSize: "14px", fontWeight: "500", fontFamily: "monospace", color: "#b0b0b0" }}>{debriefData?.code_quality_score ?? "7.8"}</div>
                 <div style={{ fontSize: "10px", color: "#606068", fontFamily: "monospace", marginTop: "3px" }}>Complexity</div>
               </div>
             </div>
             <div style={{ fontSize: "11px", color: "#707078", background: "#222222", borderLeft: "2px solid #404040", borderRadius: "0 8px 8px 0", padding: "8px 10px", fontFamily: "monospace", lineHeight: "1.55", marginBottom: "10px" }}>
-              <b style={{ color: "#a0a0a8", fontWeight: "500" }}>Jumped to code early</b> — no clarification on constraints before optimizing.
+              {debriefData?.actionable_feedback?.[0] ? (
+                 <span style={{ color: "#a0a0a8" }}>{debriefData.actionable_feedback[0]}</span>
+              ) : (
+                <>
+                  <b style={{ color: "#a0a0a8", fontWeight: "500" }}>Jumped to code early</b> — no clarification on constraints before optimizing.
+                </>
+              )}
             </div>
             <div className="no-drag" style={{ display: "flex", justifyContent: "space-around" }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
