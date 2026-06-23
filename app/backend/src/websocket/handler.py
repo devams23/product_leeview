@@ -21,7 +21,7 @@ INTERVIEW_RESPONSE_SCHEMA = {
 }
 
 
-from src.services.supabase_client import get_session
+from src.services.supabase_client import get_session, save_debrief
 
 async def handle_interview_websocket(websocket: WebSocket, session_id: str):
     """Main WebSocket handler for a single interview session."""
@@ -155,6 +155,18 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str):
                 "type": "DEBRIEF_READY",
                 "data": debrief_result
             })
+            # Save the debrief to Supabase
+            try:
+                # convert scores to integers before saving to avoid check constraint errors if floats are passed
+                db_debrief = {**debrief_result}
+                for key in ["approach_score", "communication_score", "code_correctness_score", "code_quality_score", "time_management_score", "overall_score"]:
+                    if key in db_debrief and db_debrief[key] is not None:
+                        db_debrief[key] = int(round(float(db_debrief[key])))
+                save_debrief(session_id, db_debrief)
+                logger.info(f"[{session_id}] Debrief saved to database")
+            except Exception as e:
+                logger.error(f"[{session_id}] Failed to save debrief to database: {e}")
+
             logger.info(f"[{session_id}] Sent DEBRIEF_READY")
         except Exception as e:
             logger.error(f"[{session_id}] Failed to generate debrief: {e}")
