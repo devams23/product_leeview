@@ -83,22 +83,22 @@ export function InterviewOverlay({
               {formatTime(timer)}
             </div>
             <div className="no-drag" style={{ display: "flex", justifyContent: "space-around" }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
+              {/* <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b0b0b0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15.5 13a3.5 3.5 0 0 0 -3.5 3.5v1a3.5 3.5 0 0 0 7 0v-1a3.5 3.5 0 0 0 -3.5 -3.5z"></path><path d="M8.5 13a3.5 3.5 0 0 0 -3.5 3.5v1a3.5 3.5 0 0 0 7 0v-1a3.5 3.5 0 0 0 -3.5 -3.5z"></path><path d="M17.5 16a3.5 3.5 0 0 0 0 7h-11a3.5 3.5 0 0 0 0 -7"></path><path d="M3 8a4 4 0 0 1 4 -4h10a4 4 0 0 1 4 4v5a4 4 0 0 1 -4 4h-10a4 4 0 0 1 -4 -4z"></path></svg>
                 <span style={{ fontSize: "10px", color: "#b0b0b0", fontFamily: "monospace", fontWeight: "500" }}>Problem</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3a3a4a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 5m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z"></path><path d="M14 5m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z"></path></svg>
                 <span style={{ fontSize: "10px", color: "#3a3a4a", fontFamily: "monospace" }}>Pause</span>
-              </div>
+              </div> */}
               <div onClick={onStop} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b06060" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 5m0 2a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z"></path></svg>
                 <span style={{ fontSize: "10px", color: "#b06060", fontFamily: "monospace" }}>End</span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
+              {/* <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3a3a4a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1 -7 0a5 5 0 0 0 -7 0v-9z"></path><path d="M5 21v-7"></path></svg>
                 <span style={{ fontSize: "10px", color: "#3a3a4a", fontFamily: "monospace" }}>Flag</span>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
@@ -154,14 +154,14 @@ export function InterviewOverlay({
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b0b0b0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"></path><path d="M20 18v3"></path><path d="M16 16v5"></path><path d="M12 13v8"></path><path d="M8 16v5"></path><path d="M3 11c6 0 5 -5 9 -5s3 5 9 5"></path></svg>
                 <span style={{ fontSize: "10px", color: "#b0b0b0", fontFamily: "monospace", fontWeight: "500" }}>Scores</span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
+              {/* <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3a3a4a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 9h8"></path><path d="M8 13h6"></path><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12z"></path></svg>
                 <span style={{ fontSize: "10px", color: "#3a3a4a", fontFamily: "monospace" }}>Transcript</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3a3a4a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.05 11a8 8 0 1 1 .5 4m-.5 5v-5h5"></path></svg>
                 <span style={{ fontSize: "10px", color: "#3a3a4a", fontFamily: "monospace" }}>Retry</span>
-              </div>
+              </div> */}
               <div onClick={onStop} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b06060" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6l-12 12"></path><path d="M6 6l12 12"></path></svg>
                 <span style={{ fontSize: "10px", color: "#b06060", fontFamily: "monospace" }}>Close</span>
