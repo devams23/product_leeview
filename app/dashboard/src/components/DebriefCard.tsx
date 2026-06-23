@@ -1,4 +1,6 @@
-export function DebriefCard({ debrief }: { debrief: any }) {
+import { Debrief } from "../types";
+
+export function DebriefCard({ debrief }: { debrief: Partial<Debrief> }) {
   return (
     <div className="glass-panel w-full h-full p-6 text-textPrimary flex flex-col gap-6">
       <h2 className="font-sans text-xl font-medium m-0">Debrief</h2>

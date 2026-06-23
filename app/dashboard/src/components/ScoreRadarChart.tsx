@@ -1,6 +1,7 @@
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
+import { Debrief } from "../types";
 
-export function ScoreRadarChart({ data }: { data: any }) {
+export function ScoreRadarChart({ data }: { data: Partial<Debrief> }) {
   const chartData = [
     { subject: "Approach", score: data.approach_score || 0 },
     { subject: "Communication", score: data.communication_score || 0 },

@@ -3,10 +3,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "../services/supabase";
 import { DebriefCard } from "../components/DebriefCard";
 import { ScoreRadarChart } from "../components/ScoreRadarChart";
+import { InterviewSession } from "../types";
 
 export function SessionDetail() {
   const { sessionId } = useParams();
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<InterviewSession | null>(null);
 
   useEffect(() => {
     supabase
@@ -31,12 +32,12 @@ export function SessionDetail() {
       <div className="grid grid-cols-12 gap-4">
         {/* Radar Chart Panel - 4 columns */}
         <div className="col-span-12 md:col-span-4 h-full">
-          <ScoreRadarChart data={session.debriefs?.[0] || {}} />
+          <ScoreRadarChart data={session.debriefs || {}} />
         </div>
 
         {/* Debrief Content - 8 columns */}
         <div className="col-span-12 md:col-span-8 h-full">
-          <DebriefCard debrief={session.debriefs?.[0] || {}} />
+          <DebriefCard debrief={session.debriefs || {}} />
         </div>
       </div>
     </div>

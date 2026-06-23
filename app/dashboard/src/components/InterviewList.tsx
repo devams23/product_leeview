@@ -26,9 +26,9 @@ export function InterviewList() {
                 <span className="text-[13px] text-textPrimary font-sans">{i.leetcode_title || "Untitled Problem"}</span>
               </div>
               <div className="flex items-center gap-3">
-                {i.debriefs?.[0]?.overall_score && (
+                {i.debriefs?.overall_score && (
                   <span className="text-[10px] text-textPrimary font-mono bg-bgPanel px-2 py-1 rounded-pill border border-borderGlass">
-                    Score: {i.debriefs[0].overall_score}/10
+                    Score: {i.debriefs.overall_score}/10
                   </span>
                 )}
                 <span className="text-[10px] text-textMuted font-mono bg-bgInput px-2 py-1 rounded-pill uppercase">

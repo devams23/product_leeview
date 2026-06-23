@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../services/supabase";
+import { InterviewSession } from "../types";
 
 export function useInterviews() {
-  const [interviews, setInterviews] = useState<any[]>([]);
+  const [interviews, setInterviews] = useState<InterviewSession[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
