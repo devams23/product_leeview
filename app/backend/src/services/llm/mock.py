@@ -49,6 +49,13 @@ class MockLLMProvider(LLMProvider):
         temperature: float = 0.5,
     ) -> dict[str, Any]:
         """Generate a structured response from sample JSON files."""
+        if json_schema and "properties" in json_schema:
+            if "approach_score" in json_schema["properties"] or "real_world_scenario" in json_schema["properties"]:
+                sample_file = self.sample_dir / "turn_7_debrief.json"
+                if sample_file.exists():
+                    with open(sample_file, "r") as f:
+                        return json.load(f)
+
         self.turn_counter += 1
         
         current_state = self._extract_state_from_messages(messages)
