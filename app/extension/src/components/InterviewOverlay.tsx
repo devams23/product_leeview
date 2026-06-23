@@ -139,7 +139,7 @@ export function InterviewOverlay({
             </div>
             <div style={{ fontSize: "11px", color: "#707078", background: "#222222", borderLeft: "2px solid #404040", borderRadius: "0 8px 8px 0", padding: "8px 10px", fontFamily: "monospace", lineHeight: "1.55", marginBottom: "10px" }}>
               {debriefData?.actionable_feedback?.[0] ? (
-                 <span style={{ color: "#a0a0a8" }}>{debriefData.actionable_feedback[0]}</span>
+                <span style={{ color: "#a0a0a8" }}>{debriefData.actionable_feedback[0]}</span>
               ) : (
                 <>
                   <b style={{ color: "#a0a0a8", fontWeight: "500" }}>Jumped to code early</b> — no clarification on constraints before optimizing.
