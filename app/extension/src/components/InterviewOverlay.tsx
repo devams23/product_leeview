@@ -146,6 +146,9 @@ export function InterviewOverlay({
                 </>
               )}
             </div>
+            <div style={{ fontSize: "10px", color: "#606068", textAlign: "center", marginBottom: "10px", fontFamily: "monospace" }}>
+              Visit the dashboard from your profile for detailed insights!
+            </div>
             <div className="no-drag" style={{ display: "flex", justifyContent: "space-around" }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer", padding: "5px 8px", borderRadius: "10px", minWidth: "52px" }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b0b0b0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"></path><path d="M20 18v3"></path><path d="M16 16v5"></path><path d="M12 13v8"></path><path d="M8 16v5"></path><path d="M3 11c6 0 5 -5 9 -5s3 5 9 5"></path></svg>
