@@ -3,6 +3,15 @@ export function DebriefCard({ debrief }: { debrief: any }) {
     <div className="glass-panel w-full h-full p-6 text-textPrimary flex flex-col gap-6">
       <h2 className="font-sans text-xl font-medium m-0">Debrief</h2>
       
+      {debrief.summary && (
+        <div>
+          <h3 className="text-[11px] font-medium text-textSecondary uppercase tracking-[0.1em] mb-2">Summary</h3>
+          <p className="text-sm text-textSecondary font-mono leading-relaxed m-0 p-4 glass-inner">
+            {debrief.summary}
+          </p>
+        </div>
+      )}
+
       <div>
         <h3 className="text-[11px] font-medium text-textSecondary uppercase tracking-[0.1em] mb-2">Real-World Scenario</h3>
         <p className="text-sm text-textSecondary font-mono leading-relaxed m-0 p-4 glass-inner mb-2">
