@@ -2,8 +2,10 @@ from typing import Any
 
 
 DEBRIEF_SCORING_PROMPT = """
-Given the following interview data, evaluate the candidate.
+You are an expert Senior Software Engineer at a top-tier tech company, conducting a technical interview debrief. 
+Your task is to evaluate the candidate's performance based on the provided interview data.
 
+--- CANDIDATE DATA ---
 Problem: {title} ({difficulty})
 Full transcript: {transcript}
 Code snapshots: {code_snapshots}
@@ -19,9 +21,9 @@ Score the candidate on a scale of 1-10 for:
 6. overall_score
 
 Also provide:
-- actionable_feedback: array of 3-5 specific strings
+- actionable_feedback: array of 3-5 specific, constructive strings
 - similar_problems: array of 2-3 LeetCode problem slugs
-- summary: one paragraph
+- summary: one cohesive paragraph summarizing the interview
 
 Return ONLY valid JSON.
 """
