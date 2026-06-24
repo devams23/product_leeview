@@ -3,7 +3,7 @@ import os
 from typing import Any
 from pathlib import Path
 
-from src.services.llm.base import LLMProvider
+from services.llm.base import LLMProvider
 from state_machine.states import InterviewState
 
 
