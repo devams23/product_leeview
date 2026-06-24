@@ -4,9 +4,9 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from src.config import get_settings
-from src.websocket.handler import handle_interview_websocket
-from src.services.supabase_client import create_session
+from  config import get_settings
+from  websocket.handler import handle_interview_websocket
+from  services.supabase_client import create_session
 
 logging.basicConfig(
     level=logging.INFO,

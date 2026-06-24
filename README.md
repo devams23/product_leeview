@@ -108,7 +108,7 @@ NVIDIA_NIM_BASE_URL=https://integrate.api.nvidia.com/v1
 
 Run the server:
 ```bash
-uvicorn src.main:app --reload --port 8000
+uvicorn  main:app --reload --port 8000
 ```
 
 ### 3. The Analytics Dashboard (React)

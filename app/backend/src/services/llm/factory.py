@@ -1,8 +1,8 @@
-from src.config import get_settings
-from src.services.llm.base import LLMProvider
-from src.services.llm.nvidia_nim import NVIDIANIMProvider
-from src.services.llm.openrouter import OpenRouterProvider
-from src.services.llm.mock import MockLLMProvider
+from config import get_settings
+from services.llm.base import LLMProvider
+from services.llm.nvidia_nim import NVIDIANIMProvider
+from services.llm.openrouter import OpenRouterProvider
+from services.llm.mock import MockLLMProvider
 
 settings = get_settings()
 

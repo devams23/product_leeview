@@ -3,8 +3,8 @@ import re
 import httpx
 from typing import Any
 
-from src.config import get_settings
-from src.services.llm.base import LLMProvider
+from config import get_settings
+from services.llm.base import LLMProvider
 
 settings = get_settings()
 

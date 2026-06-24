@@ -4,7 +4,7 @@ from typing import Any
 from pathlib import Path
 
 from src.services.llm.base import LLMProvider
-from src.state_machine.states import InterviewState
+from state_machine.states import InterviewState
 
 
 class MockLLMProvider(LLMProvider):

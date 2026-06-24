@@ -2,11 +2,11 @@ import json
 import logging
 from fastapi import WebSocket, WebSocketDisconnect
 
-from src.websocket.manager import manager
-from src.state_machine.machine import StateMachine
-from src.state_machine.states import InterviewState
-from src.services.llm import create_llm_provider
-from src.services.deepgram import DeepgramTTSClient
+from  websocket.manager import manager
+from  state_machine.machine import StateMachine
+from  state_machine.states import InterviewState
+from  services.llm import create_llm_provider
+from  services.deepgram import DeepgramTTSClient
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ INTERVIEW_RESPONSE_SCHEMA = {
 }
 
 
-from src.services.supabase_client import get_session, save_debrief
+from  services.supabase_client import get_session, save_debrief
 
 async def handle_interview_websocket(websocket: WebSocket, session_id: str):
     """Main WebSocket handler for a single interview session."""
@@ -135,7 +135,7 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str):
     if sm.current_state == InterviewState.GENERATING_DEBRIEF:
         try:
             logger.info(f"[{session_id}] Generating debrief...")
-            from src.debrief.engine import DebriefEngine
+            from  debrief.engine import DebriefEngine
             engine = DebriefEngine()
             
             interview_data = {

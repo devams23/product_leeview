@@ -1,7 +1,7 @@
 import pytest
-from src.state_machine.states import InterviewState
-from src.state_machine.transitions import is_valid_transition
-from src.state_machine.machine import StateMachine
+from  state_machine.states import InterviewState
+from  state_machine.transitions import is_valid_transition
+from  state_machine.machine import StateMachine
 
 
 def test_valid_transition():

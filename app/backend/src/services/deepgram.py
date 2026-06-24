@@ -3,7 +3,7 @@ import logging
 import websockets
 from typing import AsyncIterator
 
-from src.config import get_settings
+from config import get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)

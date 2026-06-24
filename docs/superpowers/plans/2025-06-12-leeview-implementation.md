@@ -398,7 +398,7 @@ cd app/backend
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-uvicorn src.main:app --reload --port 8000
+uvicorn  main:app --reload --port 8000
 ```
 
 Visit `http://localhost:8000/health` → should return `{"status": "ok"}`.
@@ -500,9 +500,9 @@ class StateMachine:
 ```python
 # app/backend/tests/test_state_machine.py
 import pytest
-from src.state_machine.states import InterviewState
-from src.state_machine.transitions import is_valid_transition
-from src.state_machine.machine import StateMachine
+from  state_machine.states import InterviewState
+from  state_machine.transitions import is_valid_transition
+from  state_machine.machine import StateMachine
 
 
 def test_valid_transition():
@@ -554,7 +554,7 @@ import json
 import httpx
 from typing import Any
 
-from src.config import get_settings
+from  config import get_settings
 
 settings = get_settings()
 
@@ -636,7 +636,7 @@ import websockets
 import io
 from typing import AsyncIterator
 
-from src.config import get_settings
+from  config import get_settings
 
 settings = get_settings()
 
@@ -715,11 +715,11 @@ manager = ConnectionManager()
 import json
 from fastapi import WebSocket, WebSocketDisconnect
 
-from src.websocket.manager import manager
-from src.state_machine.machine import StateMachine
-from src.state_machine.states import InterviewState
-from src.services.nvidia_nim import NVIDIA_NIM_Client
-from src.services.deepgram import DeepgramTTSClient
+from  websocket.manager import manager
+from  state_machine.machine import StateMachine
+from  state_machine.states import InterviewState
+from  services.nvidia_nim import NVIDIA_NIM_Client
+from  services.deepgram import DeepgramTTSClient
 
 
 async def handle_interview_websocket(websocket: WebSocket, session_id: str):
@@ -806,8 +806,8 @@ def build_interview_prompt(state: InterviewState, user_text: str, current_code: 
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.config import get_settings
-from src.websocket.handler import handle_interview_websocket
+from  config import get_settings
+from  websocket.handler import handle_interview_websocket
 
 settings = get_settings()
 
@@ -834,7 +834,7 @@ async def interview_ws(websocket: WebSocket, session_id: str):
 
 ```bash
 cd app/backend
-uvicorn src.main:app --reload --port 8000
+uvicorn  main:app --reload --port 8000
 ```
 Use a WebSocket client (e.g., Postman or `websocat`) to connect to `ws://localhost:8000/ws/interview/test-123` and send a JSON payload:
 ```json
@@ -922,8 +922,8 @@ DEBRIEF_JSON_SCHEMA: dict[str, Any] = {
 
 ```python
 from .prompts import DEBRIEF_SCORING_PROMPT, REAL_WORLD_PROMPT, DEBRIEF_JSON_SCHEMA
-from src.services.nvidia_nim import NVIDIA_NIM_Client
-from src.config import get_settings
+from  services.nvidia_nim import NVIDIA_NIM_Client
+from  config import get_settings
 
 settings = get_settings()
 
@@ -988,7 +988,7 @@ git commit -m "feat(backend): implement debrief engine with scoring and real-wor
 
 ```python
 from supabase import create_client, Client
-from src.config import get_settings
+from  config import get_settings
 
 settings = get_settings()
 
@@ -1799,7 +1799,7 @@ if __name__ == "__main__":
 - [ ] **Step 2: Run test**
 
 ```bash
-cd app/backend && uvicorn src.main:app --port 8000
+cd app/backend && uvicorn  main:app --port 8000
 # In another terminal:
 python tests/e2e/test_full_interview.py
 ```
