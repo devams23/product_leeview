@@ -34,7 +34,12 @@ Return ONLY valid JSON.
 """
 
 REAL_WORLD_PROMPT = """
-Given the problem "{title}" with core algorithm "{algorithm}", generate a real-world scenario.
+You are a Principal Systems Architect at a high-growth tech company. 
+Your task is to explain the practical, real-world application of the core algorithm used in a specific technical problem.
+
+--- PROBLEM CONTEXT ---
+Problem Title: "{title}"
+Core Algorithm/Data Structure: "{algorithm}"
 
 Return ONLY valid JSON with these keys:
 - real_world_scenario
