@@ -17,15 +17,15 @@ State transitions: {state_transitions}
 2. Be objective, strict, but constructive. Evaluate as if this is a real FAANG interview.
 3. If the transcript is empty or highly sparse, reflect this with lower communication and approach scores.
 
-Score the candidate on a scale of 1-10 for:
-1. approach_score
-2. communication_score
-3. code_correctness_score
-4. code_quality_score
-5. time_management_score
-6. overall_score
+--- SCORING RUBRIC (1-10) ---
+- approach_score: 1-3 (Did not understand problem), 4-6 (Needed heavy hints), 7-8 (Good approach with minor hints), 9-10 (Optimal approach independently).
+- communication_score: 1-3 (Silent or confusing), 4-6 (Sporadic communication), 7-8 (Clear explanations), 9-10 (Proactive, articulate, professional).
+- code_correctness_score: 1-3 (Syntax errors, completely wrong), 4-6 (Logical bugs, fails edge cases), 7-8 (Mostly correct), 9-10 (Flawless, handles all edge cases).
+- code_quality_score: 1-3 (Spaghetti code, bad naming), 4-6 (Functional but messy), 7-8 (Clean, readable), 9-10 (Production-ready, DRY, elegant).
+- time_management_score: 1-3 (Ran out of time early), 4-6 (Slow pacing), 7-8 (Good pacing), 9-10 (Efficient, finished early with time for tests).
+- overall_score: A holistic evaluation based on the above (not strictly an average).
 
-Also provide:
+--- REQUIRED OUTPUT ---
 - actionable_feedback: array of 3-5 specific, constructive strings
 - similar_problems: array of 2-3 LeetCode problem slugs
 - summary: one cohesive paragraph summarizing the interview
