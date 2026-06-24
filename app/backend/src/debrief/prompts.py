@@ -39,6 +39,7 @@ Your task is to explain the practical, real-world application of the core algori
 
 --- PROBLEM CONTEXT ---
 Problem Title: "{title}"
+Problem Description: "{description}"
 Core Algorithm/Data Structure: "{algorithm}"
 
 --- INSTRUCTIONS & GUARDRAILS ---
