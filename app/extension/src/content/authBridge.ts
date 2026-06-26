@@ -1,7 +1,7 @@
 // Injected on http://localhost:5173/* to read Supabase session from localStorage
 // and relay it to the extension's background script.
 
-function readSupabaseSession(): { id: string; email: string } | null {
+function readSupabaseSession(): { id: string; email: string; token: string } | null {
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
@@ -11,7 +11,7 @@ function readSupabaseSession(): { id: string; email: string } | null {
         const parsed = JSON.parse(raw);
         const user = parsed?.user;
         if (user?.id) {
-          return { id: user.id, email: user.email || "" };
+          return { id: user.id, email: user.email || "", token: parsed.access_token };
         }
       } catch {
         continue;

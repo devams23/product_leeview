@@ -4,8 +4,8 @@ const WS_URL = "ws://localhost:8000";
 export class InterviewWebSocket {
   private ws: WebSocket | null = null;
 
-  connect(sessionId: string, onMessage: (msg: any) => void) {
-    this.ws = new WebSocket(`${WS_URL}/ws/interview/${sessionId}`);
+  connect(sessionId: string, token: string, onMessage: (msg: any) => void) {
+    this.ws = new WebSocket(`${WS_URL}/ws/interview/${sessionId}?token=${token}`);
     this.ws.onopen = () => { /* console.log("[Extension] WS connected to backend"); */ };
     this.ws.onmessage = (event) => {
       try {
@@ -36,7 +36,8 @@ export class InterviewWebSocket {
 }
 
 export async function createSession(
-  userId: string, 
+  userId: string,
+  token: string,
   slug: string, 
   title: string, 
   difficulty: string,
@@ -46,7 +47,10 @@ export async function createSession(
 ) {
   const res = await fetch(`${BACKEND_URL}/sessions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
     body: JSON.stringify({ 
       user_id: userId, 
       leetcode_slug: slug, 
