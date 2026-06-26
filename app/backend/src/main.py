@@ -78,7 +78,15 @@ async def create_interview_session(
 
 
 from fastapi import Query, Depends
+from auth import verify_jwt
 
 @app.websocket("/ws/interview/{session_id}")
 async def interview_ws(websocket: WebSocket, session_id: str, token: str = Query(...)):
+    # Verify the token to ensure the connection is authenticated
+    try:
+        verify_jwt(token)
+    except Exception as e:
+        await websocket.close(code=1008, reason="Invalid authentication token")
+        return
+        
     await handle_interview_websocket(websocket, session_id, token)
