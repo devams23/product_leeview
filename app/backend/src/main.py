@@ -4,9 +4,10 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from  config import get_settings
-from  websocket.handler import handle_interview_websocket
-from  services.supabase_client import create_session
+from config import get_settings
+from auth import get_raw_jwt
+from websocket.handler import handle_interview_websocket
+from services.supabase_client import create_session
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,8 +59,12 @@ async def health_check():
 
 
 @app.post("/sessions", response_model=CreateSessionResponse)
-async def create_interview_session(req: CreateSessionRequest):
+async def create_interview_session(
+    req: CreateSessionRequest,
+    token: str = Depends(get_raw_jwt)
+):
     result = create_session(
+        user_jwt=token,
         user_id=req.user_id,
         leetcode_slug=req.leetcode_slug,
         leetcode_title=req.leetcode_title,
@@ -72,6 +77,16 @@ async def create_interview_session(req: CreateSessionRequest):
     return CreateSessionResponse(session_id=session_id)
 
 
+from fastapi import Query, Depends
+from auth import verify_jwt
+
 @app.websocket("/ws/interview/{session_id}")
-async def interview_ws(websocket: WebSocket, session_id: str):
-    await handle_interview_websocket(websocket, session_id)
+async def interview_ws(websocket: WebSocket, session_id: str, token: str = Query(...)):
+    # Verify the token to ensure the connection is authenticated
+    try:
+        verify_jwt(token)
+    except Exception as e:
+        await websocket.close(code=1008, reason="Invalid authentication token")
+        return
+        
+    await handle_interview_websocket(websocket, session_id, token)

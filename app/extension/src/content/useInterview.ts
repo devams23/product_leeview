@@ -64,7 +64,7 @@ export function useInterview() {
     nextStartTimeRef.current += audioBuffer.duration;
   }, []);
 
-  const startInterview = useCallback(async (userId: string) => {
+  const startInterview = useCallback(async (userId: string, token: string) => {
     // console.log("[Extension] Starting interview...");
     setPhase("CONNECTING");
 
@@ -73,6 +73,7 @@ export function useInterview() {
       // console.log(`[Extension] Problem: ${problem.title} (${problem.slug})`);
       const sessionId = await createSession(
         userId, 
+        token,
         problem.slug, 
         problem.title, 
         problem.difficulty,
@@ -83,7 +84,7 @@ export function useInterview() {
       // console.log(`[Extension] Session created: ${sessionId}`);
 
       const ws = new InterviewWebSocket();
-      ws.connect(sessionId, (msg) => {
+      ws.connect(sessionId, token, (msg) => {
         if (msg.type === "AUDIO_CHUNK") {
           setPhase((prev) => {
             if (prev !== "SPEAKING") return "SPEAKING";

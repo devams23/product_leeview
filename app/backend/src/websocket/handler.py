@@ -23,7 +23,7 @@ INTERVIEW_RESPONSE_SCHEMA = {
 
 from  services.supabase_client import get_session, save_debrief
 
-async def handle_interview_websocket(websocket: WebSocket, session_id: str):
+async def handle_interview_websocket(websocket: WebSocket, session_id: str, token: str):
     """Main WebSocket handler for a single interview session."""
     await manager.connect(websocket, session_id)
     sm = StateMachine()
@@ -34,7 +34,7 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str):
 
     # Fetch static problem context once
     try:
-        session_data = get_session(session_id).data
+        session_data = get_session(token, session_id).data
         problem_context = {
             "title": session_data.get("leetcode_title"),
             "difficulty": session_data.get("problem_difficulty"),
@@ -162,7 +162,7 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str):
                 for key in ["approach_score", "communication_score", "code_correctness_score", "code_quality_score", "time_management_score", "overall_score"]:
                     if key in db_debrief and db_debrief[key] is not None:
                         db_debrief[key] = int(round(float(db_debrief[key])))
-                save_debrief(session_id, db_debrief)
+                save_debrief(token, session_id, db_debrief)
                 logger.info(f"[{session_id}] Debrief saved to database")
             except Exception as e:
                 logger.error(f"[{session_id}] Failed to save debrief to database: {e}")

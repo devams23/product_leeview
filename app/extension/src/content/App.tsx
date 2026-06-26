@@ -5,6 +5,7 @@ import { useInterview } from "./useInterview";
 
 export default function App() {
   const [userId, setUserId] = useState<string | null>(null);
+  const [userToken, setUserToken] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const { phase, debriefData, startInterview, stopInterview } = useInterview();
@@ -13,6 +14,7 @@ export default function App() {
     chrome.runtime.sendMessage({ type: "GET_AUTH" }, (result) => {
       if (result?.userId) {
         setUserId(result.userId);
+        setUserToken(result.token || null);
         setUserEmail(result.user?.email || null);
       }
       setReady(true);
@@ -20,8 +22,8 @@ export default function App() {
   }, []);
 
   const handleStart = () => {
-    if (!userId) return;
-    startInterview(userId);
+    if (!userId || !userToken) return;
+    startInterview(userId, userToken);
   };
 
   if (!ready) return null;
