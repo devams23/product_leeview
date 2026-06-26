@@ -1,12 +1,16 @@
 from supabase import create_client, Client
-from  config import get_settings
+from config import get_settings
+from auth import supabase_for_user
 
 settings = get_settings()
 
+# We still keep the service role client for specific admin tasks if absolutely necessary,
+# but normal operations should use the per-user client.
 supabase: Client = create_client(settings.supabase_url, settings.supabase_service_role_key)
 
 
 def create_session(
+    user_jwt: str,
     user_id: str, 
     leetcode_slug: str, 
     leetcode_title: str, 
@@ -15,7 +19,8 @@ def create_session(
     problem_topics: list[str] = None,
     problem_language: str = "python"
 ):
-    return supabase.table("interview_sessions").insert({
+    client = supabase_for_user(user_jwt)
+    return client.table("interview_sessions").insert({
         "user_id": user_id,
         "leetcode_slug": leetcode_slug,
         "leetcode_title": leetcode_title,
@@ -25,10 +30,13 @@ def create_session(
         "problem_language": problem_language,
     }).execute()
 
-def get_session(session_id: str):
-    return supabase.table("interview_sessions").select("*").eq("id", session_id).single().execute()
-def log_transcript(session_id: str, speaker: str, text: str, state_at_time: str):
-    return supabase.table("transcript_logs").insert({
+def get_session(user_jwt: str, session_id: str):
+    client = supabase_for_user(user_jwt)
+    return client.table("interview_sessions").select("*").eq("id", session_id).single().execute()
+
+def log_transcript(user_jwt: str, session_id: str, speaker: str, text: str, state_at_time: str):
+    client = supabase_for_user(user_jwt)
+    return client.table("transcript_logs").insert({
         "session_id": session_id,
         "speaker": speaker,
         "text": text,
@@ -36,16 +44,18 @@ def log_transcript(session_id: str, speaker: str, text: str, state_at_time: str)
     }).execute()
 
 
-def save_code_snapshot(session_id: str, code: str, language: str):
-    return supabase.table("code_snapshots").insert({
+def save_code_snapshot(user_jwt: str, session_id: str, code: str, language: str):
+    client = supabase_for_user(user_jwt)
+    return client.table("code_snapshots").insert({
         "session_id": session_id,
         "code": code,
         "language": language,
     }).execute()
 
 
-def log_state_transition(session_id: str, from_state: str, to_state: str, triggered_by: str):
-    return supabase.table("state_transitions").insert({
+def log_state_transition(user_jwt: str, session_id: str, from_state: str, to_state: str, triggered_by: str):
+    client = supabase_for_user(user_jwt)
+    return client.table("state_transitions").insert({
         "session_id": session_id,
         "from_state": from_state,
         "to_state": to_state,
@@ -53,8 +63,9 @@ def log_state_transition(session_id: str, from_state: str, to_state: str, trigge
     }).execute()
 
 
-def save_debrief(session_id: str, debrief_data: dict):
-    return supabase.table("debriefs").insert({
+def save_debrief(user_jwt: str, session_id: str, debrief_data: dict):
+    client = supabase_for_user(user_jwt)
+    return client.table("debriefs").insert({
         "session_id": session_id,
         **debrief_data,
     }).execute()
