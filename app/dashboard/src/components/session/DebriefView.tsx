@@ -20,7 +20,7 @@ export function DebriefView({ debrief }: { debrief: Debrief }) {
         <div className="flex flex-col">
           <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-2">Overall</p>
           <p className={`mt-2 font-display text-[104px] leading-[0.9] tabular-nums sm:text-[120px] ${toneText[tone]}`}>
-            {overall ?? "-"}
+            {overall ?? "—"}
           </p>
           <p className="mt-2 font-mono text-[12px] text-text-3">out of 10</p>
         </div>
@@ -55,7 +55,7 @@ export function DebriefView({ debrief }: { debrief: Debrief }) {
         {debrief.actionable_feedback.length === 0 ? (
           <p className="text-[14px] text-text-2">No specific feedback was generated for this interview.</p>
         ) : (
-          <ol className="grid gap-3 md:grid-cols-2">
+          <ol className="flex flex-col gap-2">
             {debrief.actionable_feedback.map((item, i) => (
               <li
                 key={i}
@@ -72,7 +72,7 @@ export function DebriefView({ debrief }: { debrief: Debrief }) {
       {debrief.similar_problems.length > 0 && (
         <section aria-labelledby="similar" className="flex flex-col gap-3">
           <h2 id="similar" className="text-[15px] font-medium text-text-1">
-            Practise next
+            Practice next
           </h2>
           <ul className="flex flex-wrap gap-2">
             {debrief.similar_problems.map((problem) => (

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Tooltip } from "recharts";
 
 export interface RadarDatum {
@@ -26,7 +27,22 @@ function RadarTooltip({ active, payload }: TooltipProps) {
   );
 }
 
+/** Short axis labels keep the chart from clipping on phone-width cards. */
+const SHORT: Record<string, string> = { Communication: "Comms", Correctness: "Correct", "Code quality": "Quality" };
+
+function useNarrow(query = "(max-width: 480px)") {
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setNarrow(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [query]);
+  return narrow;
+}
+
 export function SkillRadar({ data }: { data: RadarDatum[] }) {
+  const narrow = useNarrow();
   return (
     <div className="h-[280px] w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -34,6 +50,7 @@ export function SkillRadar({ data }: { data: RadarDatum[] }) {
           <PolarGrid stroke="rgba(255,255,255,0.08)" />
           <PolarAngleAxis
             dataKey="subject"
+            tickFormatter={(v: string) => (narrow ? SHORT[v] ?? v : v)}
             tick={{ fill: "#A1A2AB", fontSize: 11, fontFamily: "JetBrains Mono, ui-monospace, monospace" }}
           />
           <PolarRadiusAxis domain={[0, 10]} tick={false} axisLine={false} />

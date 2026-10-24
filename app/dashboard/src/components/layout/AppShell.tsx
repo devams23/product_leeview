@@ -61,7 +61,7 @@ export function AppShell() {
           <button
             type="button"
             onClick={() => void signOut()}
-            className={buttonClass("ghost", "sm", "justify-start px-2")}
+            className={buttonClass("ghost", "sm", "self-start px-2")}
           >
             Sign out
           </button>

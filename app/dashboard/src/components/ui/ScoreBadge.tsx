@@ -15,10 +15,10 @@ export function ScoreBadge({ score }: { score: number | null | undefined }) {
   return (
     <span
       aria-label={`Score ${score} out of 10`}
-      className={`inline-flex h-7 items-baseline gap-0.5 rounded-chip border px-2 ${toneSoft[tone]} ${toneBorder[tone]}`}
+      className={`inline-flex h-7 items-center gap-px rounded-chip border px-2 font-mono tabular-nums ${toneSoft[tone]} ${toneBorder[tone]}`}
     >
-      <span className={`font-display text-[18px] leading-none tabular-nums ${toneText[tone]}`}>{score}</span>
-      <span className="font-mono text-[11px] text-text-3">/10</span>
+      <span className={`text-[13px] font-medium ${toneText[tone]}`}>{score}</span>
+      <span className="text-[11px] text-text-3">/10</span>
     </span>
   );
 }

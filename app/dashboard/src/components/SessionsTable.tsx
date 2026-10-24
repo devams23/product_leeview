@@ -156,7 +156,7 @@ export function SessionsTable({
                     <span className="hidden text-[13px] text-text-2 md:block" title={formatDate(when)}>
                       {formatRelative(when)}
                     </span>
-                    <span className="hidden font-mono text-[12px] text-text-2 md:block">{duration ?? "-"}</span>
+                    <span className="hidden font-mono text-[12px] text-text-2 md:block">{duration ?? "—"}</span>
                     <div className="hidden md:block">
                       <ScoreBadge score={s.debriefs?.overall_score} />
                     </div>

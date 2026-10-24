@@ -26,7 +26,7 @@ function TrendTooltip({ active, payload }: TooltipProps) {
 
 export function TrendChart({ data }: { data: TrendPoint[] }) {
   return (
-    <div className="h-[220px] w-full">
+    <div className="h-[220px] w-full lg:h-full lg:min-h-[220px]">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 12, right: 12, bottom: 0, left: 0 }}>
           <defs>

@@ -14,7 +14,7 @@ export function StatTile({
   tone?: Tone;
 }) {
   return (
-    <Card className="flex min-h-[132px] flex-col justify-between gap-4 p-5 transition-colors duration-150 hover:border-line-2">
+    <Card className="flex min-h-[132px] flex-col gap-4 p-5 transition-colors duration-150 hover:border-line-2">
       <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-2">{label}</span>
       <div className="flex flex-col gap-1.5">
         <span

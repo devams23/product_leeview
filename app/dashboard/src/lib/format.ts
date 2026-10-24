@@ -149,7 +149,10 @@ export function formatRelative(iso: string | null | undefined, now: Date = new D
   if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days} days ago`;
-  if (days < 35) return `${Math.floor(days / 7)} weeks ago`;
+  if (days < 35) {
+    const weeks = Math.floor(days / 7);
+    return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
+  }
   return formatDate(iso);
 }
 

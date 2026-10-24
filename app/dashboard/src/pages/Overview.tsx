@@ -57,7 +57,7 @@ export function Overview() {
             />
             <StatTile
               label="Avg score"
-              value={summary.avgScore == null ? "-" : summary.avgScore.toFixed(1)}
+              value={summary.avgScore == null ? "—" : summary.avgScore.toFixed(1)}
               tone={scoreTone(summary.avgScore)}
               sub={summary.scored ? `Across ${summary.scored} debrief${summary.scored === 1 ? "" : "s"}` : "No debriefs yet"}
             />
@@ -74,7 +74,7 @@ export function Overview() {
           </section>
 
           <section aria-label="Progress" className="grid gap-4 lg:grid-cols-3">
-            <Card className="p-5 sm:p-6 lg:col-span-2">
+            <Card className="flex flex-col p-5 sm:p-6 lg:col-span-2">
               <CardHeader
                 title="Score trend"
                 description={
@@ -84,7 +84,9 @@ export function Overview() {
                 }
               />
               {summary.trend.length >= 2 ? (
-                <TrendChart data={summary.trend} />
+                <div className="min-h-0 flex-1">
+                  <TrendChart data={summary.trend} />
+                </div>
               ) : summary.trend.length === 1 ? (
                 <p className="py-10 text-[14px] text-text-2">
                   Your first score is{" "}
