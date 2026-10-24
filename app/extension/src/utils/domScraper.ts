@@ -38,7 +38,6 @@ async function getCodeFromIndexedDB(language: string): Promise<string> {
 
               if (latestCodeKey) {
                 const codeIndex = keys.indexOf(latestCodeKey);
-                // console.log(codeIndex);
                 if (codeIndex !== -1) {
                   resolve(values[codeIndex]);
                   return;
@@ -65,10 +64,36 @@ function getCodeFromDOM(): string {
     if (!cmContent) return "";
 
     const lines = Array.from(cmContent.querySelectorAll('.cm-line'));
-    return lines.map(line => line.textContent || "").join('\\n');
+    return lines.map(line => line.textContent || "").join('\n');
   } catch (e) {
     return "";
   }
+}
+
+/** Slug from a LeetCode problem path, or null when not on a problem page. */
+export function slugFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/problems\/([^/]+)/);
+  return match ? match[1] : null;
+}
+
+function readDifficulty(): string | null {
+  if (document.querySelector('.text-difficulty-easy, [class*="text-difficulty-easy"]')) return "Easy";
+  if (document.querySelector('.text-difficulty-medium, [class*="text-difficulty-medium"]')) return "Medium";
+  if (document.querySelector('.text-difficulty-hard, [class*="text-difficulty-hard"]')) return "Hard";
+  const diffEl = document.querySelector('[diff]');
+  if (diffEl) return diffEl.textContent || "Medium";
+  return null;
+}
+
+/** Light, synchronous scrape used by the overlay header (no description/code). */
+export function scrapeProblemHeader(): { slug: string | null; title: string; difficulty: string } {
+  const slug = slugFromPath(window.location.pathname);
+  if (!slug) return { slug: null, title: "", difficulty: "" };
+
+  let title = document.title.split(" - ")[0] || "";
+  title = title.replace(/^\d+\.\s/, "").trim();
+
+  return { slug, title, difficulty: readDifficulty() ?? "" };
 }
 
 export async function getProblemData(): Promise<{
@@ -87,17 +112,10 @@ export async function getProblemData(): Promise<{
   }
 
   // 2. Slug from URL
-  const slug = window.location.pathname.split("/problems/")[1]?.split("/")[0] || "";
+  const slug = slugFromPath(window.location.pathname) || "";
 
   // 3. Difficulty
-  let difficulty = "Unknown";
-  if (document.querySelector('.text-difficulty-easy, [class*="text-difficulty-easy"]')) difficulty = "Easy";
-  else if (document.querySelector('.text-difficulty-medium, [class*="text-difficulty-medium"]')) difficulty = "Medium";
-  else if (document.querySelector('.text-difficulty-hard, [class*="text-difficulty-hard"]')) difficulty = "Hard";
-  else {
-    const diffEl = document.querySelector('[diff]');
-    if (diffEl) difficulty = diffEl.textContent || "Medium";
-  }
+  const difficulty = readDifficulty() ?? "Unknown";
 
   // 4. Description
   const descEl = document.querySelector('[data-track-load="description_content"]');
@@ -124,12 +142,8 @@ export async function getProblemData(): Promise<{
 
   let code = await getCodeFromIndexedDB(language);
   if (!code) {
-    // console.log("[Extension] IndexedDB code not found or empty, falling back to DOM scraping");
     code = getCodeFromDOM();
   }
 
-  const data = { title, slug, description, difficulty, code, language, topics };
-  // console.log("[Extension] Scraped Problem Data:", data);
-
-  return data;
+  return { title, slug, description, difficulty, code, language, topics };
 }

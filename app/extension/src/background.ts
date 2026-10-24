@@ -1,4 +1,6 @@
-// Listen for auth state from the dashboard content script
+import { DASHBOARD_URL } from "./config";
+
+// Listen for auth state from the dashboard content script and answer overlay requests.
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "AUTH_STATE") {
     if (message.user) {
@@ -12,6 +14,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse(result);
     });
     return true; // keep channel open for async response
+  }
+  if (message.type === "OPEN_DASHBOARD") {
+    const path = typeof message.path === "string" && message.path.startsWith("/") ? message.path : "/";
+    chrome.tabs.create({ url: `${DASHBOARD_URL}${path}` });
   }
 });
 
