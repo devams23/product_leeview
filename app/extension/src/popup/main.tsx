@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-// Fonts are bundled (no network dependency). Latin subsets keep the popup small.
-import "@fontsource-variable/inter/wght.css";
-import "@fontsource/instrument-serif/latin-400.css";
+// Latin subsets only, declared as @font-face so the popup bundle stays small.
+import bricolageLatin from "@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2";
+import instrumentSansLatin from "@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2";
 import "@fontsource/jetbrains-mono/latin-400.css";
 import "@fontsource/jetbrains-mono/latin-500.css";
 import "./popup.css";
-import { BACKEND_URL, DASHBOARD_URL } from "../config";
-import { decodeJwtExp } from "../content/useAuth";
+import { BACKEND_URL } from "../config";
+import { decodeJwtExp } from "../utils/jwt";
+
+const fontStyle = document.createElement("style");
+fontStyle.textContent = [
+  `@font-face{font-family:'Bricolage Grotesque Variable';font-style:normal;font-display:swap;font-weight:200 800;src:url(${bricolageLatin}) format('woff2');}`,
+  `@font-face{font-family:'Instrument Sans Variable';font-style:normal;font-display:swap;font-weight:400 700;src:url(${instrumentSansLatin}) format('woff2');}`,
+].join("\n");
+document.head.appendChild(fontStyle);
 
 const AUTH_KEYS = ["user", "userId", "token"] as const;
 
@@ -33,8 +40,13 @@ function toView(stored: StoredAuth): AuthView {
   return { status: "signed_in", email: stored.user?.email ?? null };
 }
 
+/** Opens a dashboard page through the background worker, which owns tab handling. */
 function openDashboardPath(path: string) {
-  chrome.tabs.create({ url: `${DASHBOARD_URL}${path}` });
+  try {
+    chrome.runtime.sendMessage({ type: "OPEN_DASHBOARD", path });
+  } catch {
+    // Extension context invalidated; nothing to do.
+  }
 }
 
 function useStoredAuth(): [AuthView, () => void] {
@@ -95,7 +107,11 @@ function SignedOut({ expired }: { expired: boolean }) {
           ? "Reconnect in one click to keep practicing."
           : "Talk through any LeetCode problem with an AI interviewer, then get a scored debrief."}
       </p>
-      <button type="button" className="pop-btn pop-btn--primary" onClick={() => openDashboardPath("/login")}>
+      <button
+        type="button"
+        className="pop-btn pop-btn--primary"
+        onClick={() => openDashboardPath("/login?from=extension")}
+      >
         Sign in
       </button>
       <p className="pop-hint">Open any LeetCode problem to start.</p>
@@ -143,7 +159,7 @@ function Popup() {
     <main className="pop">
       <header className="pop-head">
         <div className="pop-brand">
-          <span className="pop-dot" aria-hidden="true" />
+          <span className="pop-mark" aria-hidden="true" />
           <span className="pop-wordmark">LeeView</span>
         </div>
         <span className={`pop-status pop-status--${health}`} role="status">

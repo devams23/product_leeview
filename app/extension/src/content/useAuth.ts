@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AuthState, AuthStatus } from "../types";
+import { decodeJwtExp } from "../utils/jwt";
 
 // Treat tokens expiring within this window as already expired.
 const EXPIRY_MARGIN_MS = 30_000;
@@ -13,21 +14,7 @@ interface StoredAuth {
   token?: string | null;
 }
 
-/** Returns the JWT `exp` claim in seconds, or null if it cannot be decoded. */
-export function decodeJwtExp(token: string): number | null {
-  try {
-    const part = token.split(".")[1];
-    if (!part) return null;
-    const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
-    const payload = JSON.parse(atob(padded));
-    return typeof payload.exp === "number" ? payload.exp : null;
-  } catch {
-    return null;
-  }
-}
-
-export function useAuth(): AuthState & { openSignIn(): void } {
+export function useAuth(): AuthState & { openSignIn(): void; reconnect(): void } {
   const [state, setState] = useState<AuthState>({
     status: "loading",
     email: null,
@@ -88,13 +75,23 @@ export function useAuth(): AuthState & { openSignIn(): void } {
     };
   }, []);
 
+  // Opens the login page in the background; the bridge reports back and the tab is brought forward again.
   const openSignIn = useCallback(() => {
     try {
-      chrome.runtime.sendMessage({ type: "OPEN_DASHBOARD", path: "/login" });
+      chrome.runtime.sendMessage({ type: "OPEN_DASHBOARD", path: "/login?from=extension", returnToSender: true });
     } catch {
       // Extension context invalidated; nothing to do.
     }
   }, []);
 
-  return { ...state, openSignIn };
+  // Re-reads the dashboard's session in a hidden tab. Background decides what happens if it fails.
+  const reconnect = useCallback(() => {
+    try {
+      chrome.runtime.sendMessage({ type: "OPEN_DASHBOARD", path: "/dashboard", silent: true });
+    } catch {
+      // Extension context invalidated; nothing to do.
+    }
+  }, []);
+
+  return { ...state, openSignIn, reconnect };
 }

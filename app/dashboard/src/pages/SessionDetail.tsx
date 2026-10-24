@@ -83,7 +83,7 @@ export function SessionDetail() {
 
       <header className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <div className="flex min-w-0 flex-col gap-4">
-          <h1 className="break-words font-display text-[40px] leading-[1.05] text-text-1 sm:text-[52px]">
+          <h1 className="break-words font-display text-[36px] leading-[1.05] tracking-[-0.03em] text-text-1 sm:text-[44px]">
             {session.leetcode_title}
           </h1>
           <div className="flex flex-wrap items-center gap-2.5 text-[13px] text-text-2">

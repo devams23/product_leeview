@@ -33,7 +33,7 @@ export function Launcher({
         aria-label={live ? `Show LeeView, interview live, ${clock} elapsed` : "Show LeeView"}
         title="Show LeeView"
       >
-        <span className={live ? "lv-signal-dot lv-signal-dot--live" : "lv-signal-dot"} aria-hidden="true" />
+        <span className={live ? "lv-mark lv-mark--live" : "lv-mark"} aria-hidden="true" />
         <span className="lv-launcher-label">LeeView</span>
         {live ? (
           <span className="lv-launcher-detail lv-launcher-detail--timer">{clock}</span>

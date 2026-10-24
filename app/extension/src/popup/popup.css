@@ -23,8 +23,8 @@
   --radius-control: 10px;
   --radius-card: 14px;
 
-  --font-sans: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Instrument Serif", "Times New Roman", serif;
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --ease-hover: 150ms ease-out;
@@ -81,19 +81,31 @@ button:focus-visible {
   gap: 8px;
 }
 
-.pop-dot {
+.pop-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--signal);
+}
+
+.pop-mark::after {
+  content: "";
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--signal);
-  box-shadow: 0 0 0 3px var(--signal-soft);
+  background: var(--ink-0);
 }
 
 .pop-wordmark {
-  font-family: var(--font-serif);
-  font-size: 20px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
   line-height: 1;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.02em;
 }
 
 .pop-status {
@@ -150,11 +162,11 @@ button:focus-visible {
 
 .pop-display {
   margin: 0;
-  font-family: var(--font-serif);
-  font-weight: 400;
-  font-size: 22px;
-  line-height: 1.15;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .pop-muted {

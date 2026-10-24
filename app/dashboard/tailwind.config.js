@@ -24,8 +24,8 @@ export default {
         "ok-soft": "rgba(74,222,128,0.12)",
       },
       fontFamily: {
-        display: ['"Instrument Serif"', "Georgia", "serif"],
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ['"Bricolage Grotesque Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ['"Instrument Sans Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ['"JetBrains Mono"', "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       borderRadius: {

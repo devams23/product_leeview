@@ -39,10 +39,7 @@ export function StageStepper({ stage }: StageStepperProps) {
               className={state}
               title={label}
               aria-current={i === current ? "step" : undefined}
-            >
-              <span className="lv-step-dot" aria-hidden="true" />
-              {i < STAGE_LABELS.length - 1 ? <span className="lv-step-line" aria-hidden="true" /> : null}
-            </li>
+            />
           );
         })}
       </ol>

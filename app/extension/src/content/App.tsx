@@ -151,7 +151,13 @@ export default function App() {
     );
   } else {
     key = auth.status === "expired" ? "expired" : "signed_out";
-    body = <SignedOutCard expired={auth.status === "expired"} onSignIn={auth.openSignIn} />;
+    body = (
+      <SignedOutCard
+        expired={auth.status === "expired"}
+        onSignIn={auth.openSignIn}
+        onReconnect={auth.reconnect}
+      />
+    );
   }
 
   return (

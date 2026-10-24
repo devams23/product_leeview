@@ -13,6 +13,7 @@ import { TrendChart } from "../components/charts/TrendChart";
 import { SkillBar } from "../components/SkillBar";
 import { SessionsTable } from "../components/SessionsTable";
 import { SKILLS } from "../lib/format";
+import { useExtensionInstalled } from "../hooks/useExtensionInstalled";
 
 const ONBOARDING_LINK = "https://leetcode.com/problems/two-sum/";
 
@@ -31,7 +32,7 @@ export function Overview() {
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
-        <h1 className="font-display text-[40px] leading-[1.05] text-text-1 sm:text-[52px]">
+        <h1 className="font-display text-[36px] leading-[1.05] tracking-[-0.03em] text-text-1 sm:text-[44px]">
           {greeting()}, {firstName(user)}.
         </h1>
         {subline ? (
@@ -141,24 +142,35 @@ export function Overview() {
 }
 
 function Onboarding() {
+  const installed = useExtensionInstalled();
   const steps = [
-    { done: true, title: "Sign in", body: "You are signed in to LeeView." },
+    { done: true, emphasis: false, title: "Sign in", body: "You are signed in to LeeView." },
+    installed
+      ? { done: true, emphasis: false, title: "Extension installed", body: "LeeView is in Chrome and ready on LeetCode." }
+      : {
+          done: false,
+          emphasis: true,
+          title: "Add the extension",
+          body: "Add it to Chrome and pin it to your toolbar so the panel is one click away.",
+        },
     {
       done: false,
-      title: "Install the LeeView extension",
-      body: "Add it to Chrome and pin it to your toolbar so the panel is one click away.",
-    },
-    {
-      done: false,
+      emphasis: false,
       title: "Do your first interview",
       body: "Open any LeetCode problem and start the panel. About 20 minutes, spoken, with a scored debrief at the end.",
     },
-  ];
+  ].map((step) => ({
+    ...step,
+    titleClass: step.done ? "text-text-2" : "text-text-1",
+  }));
+
+  // The installed-extension step is the one exception: it reads as a success.
+  if (installed) steps[1].titleClass = "text-ok";
 
   return (
     <Card className="grid gap-8 p-6 sm:p-8 md:grid-cols-[1fr_1.1fr] md:items-start">
       <div className="flex flex-col gap-4">
-        <h2 className="font-display text-[32px] leading-tight text-text-1">Do your first interview</h2>
+        <h2 className="font-display text-[28px] leading-tight text-text-1">Do your first interview</h2>
         <p className="max-w-[40ch] text-[15px] leading-relaxed text-text-2">
           Talk through a real problem out loud. Your scores, transcript and progress will collect here as you go.
         </p>
@@ -177,7 +189,11 @@ function Onboarding() {
             <span
               aria-hidden="true"
               className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border ${
-                step.done ? "border-ok/40 bg-ok-soft text-ok" : "border-line-2 text-text-3"
+                step.done
+                  ? "border-ok/40 bg-ok-soft text-ok"
+                  : step.emphasis
+                    ? "border-signal/60 bg-signal-soft text-signal"
+                    : "border-line-2 text-text-3"
               }`}
             >
               {step.done ? (
@@ -189,7 +205,7 @@ function Onboarding() {
               )}
             </span>
             <div className="min-w-0">
-              <p className={`text-[15px] font-medium ${step.done ? "text-text-2" : "text-text-1"}`}>
+              <p className={`text-[15px] font-medium ${step.titleClass}`}>
                 {step.title}
                 {step.done && <span className="sr-only"> (done)</span>}
               </p>

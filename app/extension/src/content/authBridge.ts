@@ -23,11 +23,18 @@ function readSupabaseSession(): { id: string; email: string; token: string } | n
 
 function sendAuthToBackground() {
   const session = readSupabaseSession();
-  chrome.runtime.sendMessage(
-    { type: "AUTH_STATE", user: session },
-    () => {} // ignore response
-  );
+  try {
+    chrome.runtime.sendMessage(
+      { type: "AUTH_STATE", user: session },
+      () => {} // ignore response
+    );
+  } catch {
+    // Extension context invalidated (extension reloaded while this page stayed open).
+  }
 }
+
+// Lets the dashboard detect that the extension is installed.
+document.documentElement.dataset.leeviewExtension = "installed";
 
 // Send on load
 sendAuthToBackground();
@@ -38,3 +45,19 @@ window.addEventListener("storage", (event) => {
     sendAuthToBackground();
   }
 });
+
+// The dashboard posts this after every Supabase auth event (sign-in, token refresh, sign-out).
+window.addEventListener("message", (event) => {
+  if (event.source === window && event.data?.source === "leeview-dashboard" && event.data.type === "AUTH_CHANGED") {
+    sendAuthToBackground();
+  }
+});
+
+// Same-tab OAuth redirects and background token refreshes don't fire `storage`, so re-check on focus and periodically.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") sendAuthToBackground();
+});
+
+window.setInterval(() => {
+  if (document.visibilityState === "visible") sendAuthToBackground();
+}, 60_000);

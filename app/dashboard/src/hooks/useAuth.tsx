@@ -12,6 +12,11 @@ interface AuthValue {
 
 const AuthContext = createContext<AuthValue | null>(null);
 
+/** Tells the extension bridge (content script) that the session may have changed. Carries no tokens. */
+function pingExtension() {
+  window.postMessage({ source: "leeview-dashboard", type: "AUTH_CHANGED" }, window.location.origin);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!active) return;
         setUser(data.session?.user ?? null);
         setLoading(false);
+        pingExtension();
       })
       .catch(() => {
         if (active) setLoading(false);
@@ -32,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      pingExtension();
     });
     return () => {
       active = false;

@@ -24,7 +24,7 @@ export function OverlayShell({
       aria-label="LeeView interview panel"
     >
       <header className="lv-header" onPointerDown={onPointerDown}>
-        <span className="lv-signal-dot" aria-hidden="true" />
+        <span className="lv-mark" aria-hidden="true" />
         <span className="lv-wordmark">LeeView</span>
         {meta ? <span className="lv-header-meta">{meta}</span> : null}
         <button
