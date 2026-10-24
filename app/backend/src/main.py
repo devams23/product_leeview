@@ -1,11 +1,13 @@
 import sys
 import logging
-from fastapi import FastAPI, WebSocket
+from typing import Optional
+
+from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from config import get_settings
-from auth import get_raw_jwt
+from auth import TokenPayload, get_current_user, get_raw_jwt, verify_jwt
 from websocket.handler import handle_interview_websocket
 from services.supabase_client import create_session
 
@@ -13,6 +15,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -30,9 +33,10 @@ if not _service_key.startswith("eyJ") or len(_service_key) < 100:
 
 app = FastAPI(title="LeeView Backend", version="0.1.0")
 
+_cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()] or ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict in production
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,7 +44,8 @@ app.add_middleware(
 
 
 class CreateSessionRequest(BaseModel):
-    user_id: str
+    # Deprecated and ignored: the owner is always the verified token's subject.
+    user_id: Optional[str] = None
     leetcode_slug: str
     leetcode_title: str
     problem_difficulty: str = "Medium"
@@ -61,32 +66,38 @@ async def health_check():
 @app.post("/sessions", response_model=CreateSessionResponse)
 async def create_interview_session(
     req: CreateSessionRequest,
-    token: str = Depends(get_raw_jwt)
+    token: str = Depends(get_raw_jwt),
+    user: TokenPayload = Depends(get_current_user),
 ):
-    result = create_session(
-        user_jwt=token,
-        user_id=req.user_id,
-        leetcode_slug=req.leetcode_slug,
-        leetcode_title=req.leetcode_title,
-        problem_difficulty=req.problem_difficulty,
-        problem_description=req.problem_description,
-        problem_topics=req.problem_topics,
-        problem_language=req.problem_language,
-    )
-    session_id = result.data[0]["id"]
-    return CreateSessionResponse(session_id=session_id)
+    try:
+        result = create_session(
+            user_jwt=token,
+            user_id=user.sub,
+            leetcode_slug=req.leetcode_slug,
+            leetcode_title=req.leetcode_title,
+            problem_difficulty=req.problem_difficulty,
+            problem_description=req.problem_description,
+            problem_topics=req.problem_topics,
+            problem_language=req.problem_language,
+        )
+    except Exception as exc:
+        logger.error(f"Failed to insert interview session: {exc}")
+        raise HTTPException(status_code=502, detail="Could not create interview session")
 
+    if not result.data:
+        logger.error("Session insert returned no rows")
+        raise HTTPException(status_code=502, detail="Could not create interview session")
 
-from fastapi import Query, Depends
-from auth import verify_jwt
+    return CreateSessionResponse(session_id=result.data[0]["id"])
+
 
 @app.websocket("/ws/interview/{session_id}")
 async def interview_ws(websocket: WebSocket, session_id: str, token: str = Query(...)):
     # Verify the token to ensure the connection is authenticated
     try:
         verify_jwt(token)
-    except Exception as e:
+    except Exception:
         await websocket.close(code=1008, reason="Invalid authentication token")
         return
-        
+
     await handle_interview_websocket(websocket, session_id, token)

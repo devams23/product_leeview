@@ -30,6 +30,10 @@ def create_session(
         "problem_language": problem_language,
     }).execute()
 
+def update_session(user_jwt: str, session_id: str, **fields):
+    client = supabase_for_user(user_jwt)
+    return client.table("interview_sessions").update(fields).eq("id", session_id).execute()
+
 def get_session(user_jwt: str, session_id: str):
     client = supabase_for_user(user_jwt)
     return client.table("interview_sessions").select("*").eq("id", session_id).single().execute()

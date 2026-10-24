@@ -2,8 +2,12 @@ import os
 from typing import Optional
 
 import jwt
+from dotenv import load_dotenv
 from fastapi import Header, HTTPException, Depends
 from pydantic import BaseModel, ValidationError
+
+# Must run before reading the secret: uvicorn does not load .env by itself.
+load_dotenv()
 
 # Load Supabase JWT secret (the same secret used by Supabase to sign JWTs)
 # In a real deployment this should come from a secure secret store.

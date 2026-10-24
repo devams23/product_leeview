@@ -15,10 +15,14 @@ class Settings(BaseSettings):
     supabase_anon_key: str
     backend_host: str = "0.0.0.0"
     backend_port: int = 8000
+    # Comma-separated list of allowed browser origins. "*" is dev-only.
+    cors_origins: str = "*"
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        # SUPABASE_JWT_SECRET is read directly in auth.py; ignore it here.
+        extra = "ignore"
 
 
 @lru_cache()
