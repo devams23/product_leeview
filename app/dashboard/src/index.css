@@ -3,17 +3,41 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    background: #0a0b0d;
+    color-scheme: dark;
+  }
+
   body {
-    @apply bg-bgBase text-textPrimary antialiased;
+    @apply bg-ink-0 text-text-1 font-sans antialiased;
+    font-size: 14px;
+    line-height: 1.55;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  ::selection {
+    background: rgba(212, 255, 63, 0.28);
+    color: #ededf0;
+  }
+
+  :focus-visible {
+    outline: 2px solid #d4ff3f;
+    outline-offset: 2px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.01em;
   }
 }
 
-@layer components {
-  .glass-panel {
-    @apply bg-bgPanel border border-borderGlass outline outline-1 outline-outlineDepth rounded-panel backdrop-blur-[18px];
-  }
-  
-  .glass-inner {
-    @apply bg-bgPanelInner border border-borderGlassInner rounded-inner;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
