@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { UserIcon } from "./Icons";
 
 /** How long a silent reconnect may run before the plain "Sign in" button takes over. */
 const RECONNECT_TIMEOUT_MS = 12_000;
@@ -26,26 +25,20 @@ export function SignedOutCard({ expired, onSignIn, onReconnect, initialPhase = "
 
   if (!expired) {
     return (
-      <div className="lv-stack lv-center">
-        <span className="lv-card-icon" aria-hidden="true">
-          <UserIcon />
-        </span>
+      <div className="lv-stack">
         <p className="lv-title">Sign in to start practicing</p>
-        <p className="lv-muted">Your interviews and debriefs are saved to your dashboard.</p>
+        <p className="lv-muted">Your interviews and debriefs save to your dashboard.</p>
         <button type="button" className="lv-btn lv-btn--primary lv-btn--block" onClick={onSignIn}>
           Sign in
         </button>
-        <p className="lv-meta">You'll come right back here after signing in.</p>
+        <p className="lv-meta">You'll come right back here after.</p>
       </div>
     );
   }
 
   if (phase === "reconnecting") {
     return (
-      <div className="lv-stack lv-center">
-        <span className="lv-card-icon" aria-hidden="true">
-          <UserIcon />
-        </span>
+      <div className="lv-stack">
         <p className="lv-title">Your session expired</p>
         <p className="lv-muted" role="status">Reconnecting in the background.</p>
         <button type="button" className="lv-btn lv-btn--primary lv-btn--block" disabled aria-busy="true">
@@ -58,10 +51,7 @@ export function SignedOutCard({ expired, onSignIn, onReconnect, initialPhase = "
 
   if (phase === "stalled") {
     return (
-      <div className="lv-stack lv-center">
-        <span className="lv-card-icon" aria-hidden="true">
-          <UserIcon />
-        </span>
+      <div className="lv-stack">
         <p className="lv-title">Your session expired</p>
         <p className="lv-muted">Sign in again to keep practicing.</p>
         <button type="button" className="lv-btn lv-btn--primary lv-btn--block" onClick={onSignIn}>
@@ -73,10 +63,7 @@ export function SignedOutCard({ expired, onSignIn, onReconnect, initialPhase = "
   }
 
   return (
-    <div className="lv-stack lv-center">
-      <span className="lv-card-icon" aria-hidden="true">
-        <UserIcon />
-      </span>
+    <div className="lv-stack">
       <p className="lv-title">Your session expired</p>
       <p className="lv-muted">Reconnect your account in one click.</p>
       <button

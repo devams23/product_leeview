@@ -45,9 +45,7 @@ export function StageStepper({ stage }: StageStepperProps) {
       </ol>
       <div className="lv-stepper-caption">
         <strong>{STAGE_LABELS[current]}</strong>
-        <span>
-          {current + 1} / {STAGE_LABELS.length}
-        </span>
+        <span>{current + 1} of {STAGE_LABELS.length}</span>
       </div>
     </div>
   );

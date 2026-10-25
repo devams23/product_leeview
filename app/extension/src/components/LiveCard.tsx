@@ -33,9 +33,9 @@ function visualModeFor(phase: Phase, muted: boolean): VisualMode {
 
 function statusFor(phase: Phase, muted: boolean): StatusInfo {
   if (phase === "AI_SPEAKING") return { text: "Interviewer speaking", className: "lv-status lv-status--ai" };
-  if (phase === "THINKING") return { text: "Thinking…", className: "lv-status" };
+  if (phase === "THINKING") return { text: "Thinking…", className: "lv-status lv-status--think" };
   if (muted) return { text: "Muted", className: "lv-status lv-status--muted" };
-  return { text: "Your turn — speak", className: "lv-status lv-status--you" };
+  return { text: "Your turn", className: "lv-status lv-status--you" };
 }
 
 /** Live interview: stage, visualiser, status, optional captions, and controls. */
@@ -64,40 +64,36 @@ export function LiveCard({
   const status = statusFor(phase, muted);
 
   return (
-    <div className="lv-stack">
-      <div className="lv-live-top">
-        <span className="lv-rec">
-          <span className={muted ? "lv-rec-dot lv-rec-dot--off" : "lv-rec-dot"} aria-hidden="true" />
-          Live
-        </span>
+    <div className="lv-live">
+      <div className="lv-live-head">
+        <p className={status.className} aria-live="polite">
+          <span className="lv-status-dot" aria-hidden="true" />
+          {status.text}
+        </p>
         <span className="lv-timer">{formatClock(elapsedSeconds)}</span>
       </div>
 
-      <StageStepper stage={stage} />
-
       <VoiceVisualizer mode={mode} level={micLevel} />
 
-      <p className={status.className} aria-live="polite">{status.text}</p>
+      <StageStepper stage={stage} />
 
       <CaptionStrip visible={captionsOn} aiCaption={aiCaption} userCaption={userCaption} />
 
       <div className="lv-controls">
         <button
           type="button"
-          className="lv-btn lv-btn--ghost lv-btn--end lv-btn--mute"
+          className="lv-icon-btn lv-icon-btn--mute"
           aria-pressed={muted}
-          aria-label={muted ? "Unmute microphone" : "Mute microphone"}
+          aria-label={muted ? "Unmute microphone (M)" : "Mute microphone (M)"}
           title={muted ? "Unmute (M)" : "Mute (M)"}
           onClick={onToggleMute}
         >
           {muted ? <MicOffIcon /> : <MicIcon />}
-          {muted ? "Unmute" : "Mute"}
-          <kbd className="lv-kbd">M</kbd>
         </button>
 
         <button
           type="button"
-          className="lv-cc-btn"
+          className="lv-icon-btn lv-icon-btn--text"
           aria-pressed={captionsOn}
           aria-label={captionsOn ? "Hide captions" : "Show captions"}
           title="Captions"
@@ -109,16 +105,16 @@ export function LiveCard({
         {confirming ? (
           <button
             type="button"
-            className="lv-btn lv-btn--confirm lv-btn--end lv-controls-end"
+            className="lv-btn lv-btn--confirm lv-btn--sm lv-controls-end"
             onClick={onEnd}
             aria-label="Confirm: end interview and get debrief"
           >
-            End &amp; get debrief?
+            End &amp; get debrief
           </button>
         ) : (
           <button
             type="button"
-            className="lv-btn lv-btn--danger lv-btn--end lv-controls-end"
+            className="lv-btn lv-btn--danger lv-btn--sm lv-controls-end"
             onClick={() => setConfirming(true)}
             aria-label="End interview"
           >

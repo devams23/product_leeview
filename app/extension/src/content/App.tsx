@@ -15,7 +15,7 @@ import { DebriefCard } from "../components/DebriefCard";
 import { ErrorCard } from "../components/ErrorCard";
 import { openDashboard } from "../components/openDashboard";
 
-const SHELL_WIDTH = 340;
+const SHELL_WIDTH = 300;
 const LIVE_PHASES: ReadonlySet<Phase> = new Set<Phase>(["LISTENING", "AI_SPEAKING", "THINKING"]);
 
 /** The focused element, looking through our own shadow root when focus is inside the overlay. */
@@ -168,6 +168,7 @@ export default function App() {
       onPointerDown={position.onPointerDown}
       onCollapse={() => setCollapsed(true)}
       meta={problem.title || undefined}
+      live={live}
     >
       <div key={key} className="lv-body">
         {body}

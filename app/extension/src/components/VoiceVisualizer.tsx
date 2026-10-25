@@ -1,6 +1,6 @@
 export type VisualMode = "listening" | "muted" | "ai" | "thinking";
 
-const BAR_COUNT = 24;
+const BAR_COUNT = 20;
 // Fixed per-bar weights so the bars look like a waveform instead of a flat block.
 const WEIGHTS = Array.from({ length: BAR_COUNT }, (_, i) => 0.45 + 0.55 * Math.abs(Math.sin((i + 1) * 1.7)));
 
@@ -30,7 +30,7 @@ export function VoiceVisualizer({ mode, level }: VoiceVisualizerProps) {
           <span
             key={i}
             className="lv-bar"
-            style={{ height: `${Math.round(4 + clamped * 56 * weight)}px` }}
+            style={{ height: `${Math.round(3 + clamped * 26 * weight)}px` }}
           />
         ))}
       </div>
