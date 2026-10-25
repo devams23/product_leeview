@@ -47,10 +47,12 @@ async def get_current_user(token: str = Depends(get_raw_jwt)) -> TokenPayload:
 # Helper to obtain a Supabase client bound to a specific user token.
 # This avoids using the admin service‑role key for regular operations.
 from supabase import create_client, Client
+from supabase.lib.client_options import SyncClientOptions
 from config import Settings, get_settings
 
 def supabase_for_user(user_jwt: str) -> Client:
     settings: Settings = get_settings()
-    client: Client = create_client(settings.supabase_url, settings.supabase_anon_key)
-    client.auth.set_auth(user_jwt)
-    return client
+    # supabase-py 2.x has no auth.set_auth; the user's JWT goes in as the Authorization
+    # header so PostgREST evaluates RLS as that user.
+    options = SyncClientOptions(headers={"Authorization": f"Bearer {user_jwt}"})
+    return create_client(settings.supabase_url, settings.supabase_anon_key, options=options)
