@@ -41,17 +41,19 @@ export function activityDate(session: InterviewSession): string | null {
 }
 
 export function computeSummary(sessions: InterviewSession[], now: Date = new Date()): Summary {
-  const overall = sessions
+  // Sessions created but never started ("PREPARING") carry no activity, so they are excluded throughout.
+  const started = sessions.filter((s) => s.status !== "PREPARING");
+  const overall = started
     .map((s) => s.debriefs?.overall_score)
     .filter((v): v is number => typeof v === "number");
   const avgScore = overall.length ? round1(overall.reduce((a, b) => a + b, 0) / overall.length) : null;
 
-  const totalSeconds = sessions.reduce((acc, s) => acc + (sessionDurationSeconds(s) ?? 0), 0);
+  const totalSeconds = started.reduce((acc, s) => acc + (sessionDurationSeconds(s) ?? 0), 0);
 
   // Streak: consecutive local days with activity, counting back from today (or from yesterday
   // when today has none yet).
   const activeDays = new Set<string>();
-  for (const s of sessions) {
+  for (const s of started) {
     const iso = activityDate(s);
     if (iso) activeDays.add(dayKey(new Date(iso)));
   }
@@ -63,7 +65,7 @@ export function computeSummary(sessions: InterviewSession[], now: Date = new Dat
     cursor.setDate(cursor.getDate() - 1);
   }
 
-  const trend: TrendPoint[] = sessions
+  const trend: TrendPoint[] = started
     .filter((s) => s.status === "COMPLETED" && typeof s.debriefs?.overall_score === "number")
     .map((s) => ({ s, iso: activityDate(s) ?? s.started_at }))
     .sort((a, b) => Date.parse(a.iso) - Date.parse(b.iso))
@@ -77,7 +79,7 @@ export function computeSummary(sessions: InterviewSession[], now: Date = new Dat
     }));
 
   const skills: SkillStat[] = SKILLS.map((skill) => {
-    const values = sessions
+    const values = started
       .map((s) => s.debriefs?.[skill.key])
       .filter((v): v is number => typeof v === "number");
     return {
@@ -93,14 +95,14 @@ export function computeSummary(sessions: InterviewSession[], now: Date = new Dat
       .filter((s): s is SkillStat & { average: number } => s.average !== null)
       .sort((a, b) => a.average - b.average)[0] ?? null;
 
-  const lastActivity = sessions
+  const lastActivity = started
     .map(activityDate)
     .filter((v): v is string => v !== null)
     .sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
 
   return {
-    total: sessions.length,
-    completed: sessions.filter((s) => s.status === "COMPLETED").length,
+    total: started.length,
+    completed: started.filter((s) => s.status === "COMPLETED").length,
     scored: overall.length,
     avgScore,
     totalSeconds,

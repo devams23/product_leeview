@@ -45,7 +45,7 @@ export default function App() {
   const position = usePersistentPosition(SHELL_WIDTH);
 
   const {
-    phase, stage, elapsedSeconds, micLevel, muted, toggleMute, aiCaption, userCaption,
+    phase, stage, elapsedSeconds, voiceLevel, muted, toggleMute,
     debrief, sessionId, error, start, end, reset,
   } = interview;
   const live = LIVE_PHASES.has(phase);
@@ -129,11 +129,9 @@ export default function App() {
         phase={phase}
         stage={stage}
         elapsedSeconds={elapsedSeconds}
-        micLevel={micLevel}
+        voiceLevel={voiceLevel}
         muted={muted}
         onToggleMute={toggleMute}
-        aiCaption={aiCaption}
-        userCaption={userCaption}
         onEnd={end}
       />
     );

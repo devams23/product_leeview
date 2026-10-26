@@ -21,7 +21,7 @@ export function Overview() {
   const { user } = useAuth();
   const { interviews, loading, error, reload } = useInterviews();
   const summary = useMemo(() => computeSummary(interviews), [interviews]);
-  const hasSessions = interviews.length > 0;
+  const hasSessions = summary.total > 0;
 
   const subline = loading
     ? null

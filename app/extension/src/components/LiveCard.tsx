@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import type { Caption, Phase, Stage } from "../types";
-import { CaptionStrip } from "./CaptionStrip";
+import type { Phase, Stage } from "../types";
 import { formatClock } from "./format";
 import { MicIcon, MicOffIcon, StopIcon } from "./Icons";
-import { StageStepper } from "./StageStepper";
-import { VoiceVisualizer, type VisualMode } from "./VoiceVisualizer";
+import { STAGE_LABELS, stageIndex } from "./stages";
+import { VoiceOrb, type OrbMode } from "./VoiceOrb";
 
 const CONFIRM_MS = 4000;
 
@@ -12,11 +11,9 @@ interface LiveCardProps {
   phase: Phase;
   stage: Stage | null;
   elapsedSeconds: number;
-  micLevel: number;
+  voiceLevel: number;
   muted: boolean;
   onToggleMute: () => void;
-  aiCaption: Caption | null;
-  userCaption: Caption | null;
   onEnd: () => void;
 }
 
@@ -25,7 +22,7 @@ interface StatusInfo {
   className: string;
 }
 
-function visualModeFor(phase: Phase, muted: boolean): VisualMode {
+function orbModeFor(phase: Phase, muted: boolean): OrbMode {
   if (phase === "AI_SPEAKING") return "ai";
   if (phase === "THINKING") return "thinking";
   return muted ? "muted" : "listening";
@@ -38,12 +35,9 @@ function statusFor(phase: Phase, muted: boolean): StatusInfo {
   return { text: "Your turn", className: "lv-status lv-status--you" };
 }
 
-/** Live interview: stage, visualiser, status, optional captions, and controls. */
-export function LiveCard({
-  phase, stage, elapsedSeconds, micLevel, muted, onToggleMute, aiCaption, userCaption, onEnd,
-}: LiveCardProps) {
+/** Live interview: the voice orb, who is talking, where we are, and two controls. */
+export function LiveCard({ phase, stage, elapsedSeconds, voiceLevel, muted, onToggleMute, onEnd }: LiveCardProps) {
   // Only mounted while live, so the confirm state never outlives the live session.
-  const [captionsOn, setCaptionsOn] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
   // The End confirmation reverts on its own after a few seconds, and Esc cancels it.
@@ -60,24 +54,21 @@ export function LiveCard({
     };
   }, [confirming]);
 
-  const mode = visualModeFor(phase, muted);
   const status = statusFor(phase, muted);
+  const current = stageIndex(stage);
 
   return (
     <div className="lv-live">
-      <div className="lv-live-head">
-        <p className={status.className} aria-live="polite">
-          <span className="lv-status-dot" aria-hidden="true" />
-          {status.text}
+      <VoiceOrb mode={orbModeFor(phase, muted)} level={voiceLevel} />
+
+      <div className="lv-live-meta">
+        <p className={status.className} aria-live="polite">{status.text}</p>
+        <p className="lv-live-sub">
+          {STAGE_LABELS[current]} · {current + 1}/{STAGE_LABELS.length}
+          <span className="lv-live-sep" aria-hidden="true">·</span>
+          <span className="lv-timer">{formatClock(elapsedSeconds)}</span>
         </p>
-        <span className="lv-timer">{formatClock(elapsedSeconds)}</span>
       </div>
-
-      <VoiceVisualizer mode={mode} level={micLevel} />
-
-      <StageStepper stage={stage} />
-
-      <CaptionStrip visible={captionsOn} aiCaption={aiCaption} userCaption={userCaption} />
 
       <div className="lv-controls">
         <button
@@ -91,21 +82,10 @@ export function LiveCard({
           {muted ? <MicOffIcon /> : <MicIcon />}
         </button>
 
-        <button
-          type="button"
-          className="lv-icon-btn lv-icon-btn--text"
-          aria-pressed={captionsOn}
-          aria-label={captionsOn ? "Hide captions" : "Show captions"}
-          title="Captions"
-          onClick={() => setCaptionsOn((on) => !on)}
-        >
-          CC
-        </button>
-
         {confirming ? (
           <button
             type="button"
-            className="lv-btn lv-btn--confirm lv-btn--sm lv-controls-end"
+            className="lv-btn lv-btn--confirm lv-btn--sm"
             onClick={onEnd}
             aria-label="Confirm: end interview and get debrief"
           >
@@ -114,7 +94,7 @@ export function LiveCard({
         ) : (
           <button
             type="button"
-            className="lv-btn lv-btn--danger lv-btn--sm lv-controls-end"
+            className="lv-btn lv-btn--danger lv-btn--sm"
             onClick={() => setConfirming(true)}
             aria-label="End interview"
           >

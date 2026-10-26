@@ -81,7 +81,7 @@ function readDifficulty(): string | null {
   if (document.querySelector('.text-difficulty-medium, [class*="text-difficulty-medium"]')) return "Medium";
   if (document.querySelector('.text-difficulty-hard, [class*="text-difficulty-hard"]')) return "Hard";
   const diffEl = document.querySelector('[diff]');
-  if (diffEl) return diffEl.textContent || "Medium";
+  if (diffEl) return diffEl.textContent || null;
   return null;
 }
 
@@ -100,7 +100,7 @@ export async function getProblemData(): Promise<{
   title: string;
   slug: string;
   description: string;
-  difficulty: string;
+  difficulty: string | null;
   code: string;
   language: string;
   topics: string[];
@@ -115,7 +115,7 @@ export async function getProblemData(): Promise<{
   const slug = slugFromPath(window.location.pathname) || "";
 
   // 3. Difficulty
-  const difficulty = readDifficulty() ?? "Unknown";
+  const difficulty = readDifficulty();
 
   // 4. Description
   const descEl = document.querySelector('[data-track-load="description_content"]');

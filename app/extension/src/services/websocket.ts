@@ -74,7 +74,7 @@ export async function createSession(
   token: string,
   slug: string,
   title: string,
-  difficulty: string,
+  difficulty: string | null,
   description: string = "",
   topics: string[] = [],
   language: string = "python",

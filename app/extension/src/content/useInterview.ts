@@ -53,7 +53,7 @@ function micError(err: unknown): InterviewError {
  * so a reset/unmount mid-connect cannot resurrect a torn-down interview.
  */
 export function useInterview(auth: AuthState): {
-  phase: Phase; stage: Stage | null; elapsedSeconds: number; micLevel: number; // 0..1
+  phase: Phase; stage: Stage | null; elapsedSeconds: number; voiceLevel: number; // 0..1
   muted: boolean; toggleMute(): void;
   aiCaption: Caption | null; userCaption: Caption | null;
   debrief: Debrief | null; sessionId: string | null; error: InterviewError | null;
@@ -62,7 +62,7 @@ export function useInterview(auth: AuthState): {
   const [phase, setPhaseState] = useState<Phase>("IDLE");
   const [stage, setStage] = useState<Stage | null>(null);
   const [elapsedSeconds, setElapsed] = useState(0);
-  const [micLevel, setMicLevel] = useState(0);
+  const [voiceLevel, setVoiceLevel] = useState(0);
   const [muted, setMuted] = useState(false);
   const [aiCaption, setAiCaption] = useState<Caption | null>(null);
   const [userCaption, setUserCaption] = useState<Caption | null>(null);
@@ -90,6 +90,8 @@ export function useInterview(auth: AuthState): {
   const playCtxRef = useRef<AudioContext | null>(null);
   const nextPlayTimeRef = useRef(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+  // Sits between TTS playback and the speakers so the orb can follow the interviewer's voice.
+  const playAnalyserRef = useRef<AnalyserNode | null>(null);
 
   // Final transcript segments waiting to be sent as one utterance, plus the live interim tail.
   const bufferRef = useRef("");
@@ -161,6 +163,7 @@ export function useInterview(auth: AuthState): {
     nextPlayTimeRef.current = 0;
     const ctx = playCtxRef.current;
     playCtxRef.current = null;
+    playAnalyserRef.current = null;
     if (ctx && ctx.state !== "closed") ctx.close().catch(() => {});
   }
 
@@ -212,7 +215,7 @@ export function useInterview(auth: AuthState): {
 
   function fail(err: InterviewError) {
     cleanupAll();
-    setMicLevel(0);
+    setVoiceLevel(0);
     setError(err);
     applyPhase("ERROR");
   }
@@ -299,7 +302,7 @@ export function useInterview(auth: AuthState): {
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(ctx.destination);
+    source.connect(playAnalyserRef.current ?? ctx.destination);
 
     const now = ctx.currentTime;
     if (nextPlayTimeRef.current < now) nextPlayTimeRef.current = now + 0.05;
@@ -385,7 +388,7 @@ export function useInterview(auth: AuthState): {
         setDebrief((msg.data ?? null) as Debrief | null);
         if (typeof msg.session_id === "string") setSessionId(msg.session_id);
         teardownNetwork();
-        setMicLevel(0);
+        setVoiceLevel(0);
         applyPhase("DEBRIEF_READY");
         return;
 
@@ -430,10 +433,14 @@ export function useInterview(auth: AuthState): {
   }
 
   function tickLevel() {
-    const analyser = analyserRef.current;
+    // Follow whoever is talking: the mic while listening, TTS playback while the interviewer speaks.
+    const phase = phaseRef.current;
+    const analyser = phase === "AI_SPEAKING"
+      ? playAnalyserRef.current
+      : phase === "LISTENING" && !mutedRef.current ? analyserRef.current : null;
     const samples = samplesRef.current;
     let target = 0;
-    if (analyser && samples && phaseRef.current === "LISTENING" && !mutedRef.current) {
+    if (analyser && samples && samples.length === analyser.fftSize) {
       analyser.getFloatTimeDomainData(samples);
       let sum = 0;
       for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
@@ -441,7 +448,7 @@ export function useInterview(auth: AuthState): {
     }
     levelRef.current = levelRef.current * 0.6 + target * 0.4;
     const next = Math.round(levelRef.current * 100) / 100;
-    setMicLevel((prev) => (Math.abs(prev - next) < 0.02 ? prev : next));
+    setVoiceLevel((prev) => (Math.abs(prev - next) < 0.02 ? prev : next));
   }
 
   function startRecorder(stream: MediaStream, stt: DeepgramSTT) {
@@ -462,7 +469,7 @@ export function useInterview(auth: AuthState): {
     setPhaseState("IDLE");
     setStage(null);
     setElapsed(0);
-    setMicLevel(0);
+    setVoiceLevel(0);
     setMuted(false);
     mutedRef.current = false;
     setAiCaption(null);
@@ -488,7 +495,7 @@ export function useInterview(auth: AuthState): {
     setUserCaption(null);
     setStage(null);
     setElapsed(0);
-    setMicLevel(0);
+    setVoiceLevel(0);
     setMuted(false);
     mutedRef.current = false;
     setTimer("elapsed", () => {
@@ -506,10 +513,15 @@ export function useInterview(auth: AuthState): {
       const Ctx = window.AudioContext || (window as any).webkitAudioContext;
       const playback: AudioContext = new Ctx();
       playCtxRef.current = playback;
+      const playAnalyser = playback.createAnalyser();
+      playAnalyser.fftSize = 1024;
+      playAnalyser.connect(playback.destination);
+      playAnalyserRef.current = playAnalyser;
       nextPlayTimeRef.current = 0;
       playback.resume().catch(() => {});
     } catch {
       playCtxRef.current = null;
+      playAnalyserRef.current = null;
     }
 
     applyPhase("PREFLIGHT");
@@ -602,7 +614,7 @@ export function useInterview(auth: AuthState): {
     sttRef.current = null;
     stt?.disconnect();
     teardownMedia();
-    setMicLevel(0);
+    setVoiceLevel(0);
     applyPhase("GENERATING_DEBRIEF");
     startDebriefTimer();
   }
@@ -641,7 +653,7 @@ export function useInterview(auth: AuthState): {
     phase,
     stage,
     elapsedSeconds,
-    micLevel,
+    voiceLevel,
     muted,
     toggleMute,
     aiCaption,

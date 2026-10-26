@@ -8,9 +8,10 @@ import type { Debrief } from "../../types";
 export function DebriefView({ debrief }: { debrief: Debrief }) {
   const overall = debrief.overall_score;
   const tone = scoreTone(overall);
-  const radarData: RadarDatum[] = SKILLS.map((skill) => {
+  // Unscored skills are left off the polygon rather than plotted at 0.
+  const radarData: RadarDatum[] = SKILLS.flatMap((skill) => {
     const raw = debrief[skill.key];
-    return { subject: skill.label, value: raw ?? 0, raw };
+    return raw == null ? [] : [{ subject: skill.label, value: raw, raw }];
   });
   const hasRadar = SKILLS.some((skill) => debrief[skill.key] != null);
 
