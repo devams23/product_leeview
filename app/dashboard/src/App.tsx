@@ -7,6 +7,7 @@ import { Overview } from "./pages/Overview";
 import { History } from "./pages/History";
 import { SessionDetail } from "./pages/SessionDetail";
 import { NotFound } from "./pages/NotFound";
+import { Profile } from "./pages/Profile";
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -20,6 +21,7 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Overview />} />
         <Route path="/history" element={<History />} />
         <Route path="/session/:sessionId" element={<SessionDetail />} />
+        <Route path="/profile" element={<Profile />} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<NotFound />} />
