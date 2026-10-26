@@ -15,7 +15,7 @@ class NVIDIANIMProvider(LLMProvider):
     def __init__(self):
         self.api_key = settings.nvidia_nim_api_key
         self.base_url = settings.nvidia_nim_base_url
-        self.model = "meta/llama-3.2-3b-instruct"
+        self.model = settings.nvidia_nim_model
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

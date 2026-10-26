@@ -33,6 +33,13 @@ if not _service_key.startswith("eyJ") or len(_service_key) < 100:
 
 app = FastAPI(title="LeeView Backend", version="0.1.0")
 
+if settings.llm_provider.lower() == "mock":
+    logger.warning("LLM_PROVIDER=mock: interviewer replies and debriefs are canned sample data, not real evaluations")
+elif settings.llm_provider.lower() == "nvidia_nim":
+    logger.info("LLM provider: nvidia_nim (%s)", settings.nvidia_nim_model)
+else:
+    logger.info("LLM provider: %s", settings.llm_provider)
+
 _cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()] or ["*"]
 app.add_middleware(
     CORSMiddleware,
