@@ -55,7 +55,7 @@ class CreateSessionRequest(BaseModel):
     user_id: Optional[str] = None
     leetcode_slug: str
     leetcode_title: str
-    problem_difficulty: str = "Medium"
+    problem_difficulty: Optional[str] = None
     problem_description: str = ""
     problem_topics: list[str] = []
     problem_language: str = "python"

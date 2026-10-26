@@ -72,6 +72,7 @@ class _InterviewContext:
     language: str = "python"
     transitions: list = field(default_factory=list)  # (from_state, to_state, triggered_by)
     started_at: float = field(default_factory=time.monotonic)
+    stage_entries: list = field(default_factory=list)  # (state, monotonic time it was entered)
 
 
 async def _safe(fn, *args, **kwargs):
@@ -91,8 +92,19 @@ async def _try_send(session_id: str, message: dict):
         logger.warning(f"[{session_id}] Could not send {message.get('type')}: {e}")
 
 
-def _duration_seconds(ctx: _InterviewContext) -> int:
-    return int(time.monotonic() - ctx.started_at)
+def _duration_seconds(ctx: _InterviewContext, until: Optional[float] = None) -> int:
+    return int((until if until is not None else time.monotonic()) - ctx.started_at)
+
+
+def _time_per_state(ctx: _InterviewContext, until: float) -> str:
+    """Seconds spent in each stage, from the recorded transition times."""
+    entries = [(InterviewState.INTRO, ctx.started_at)] + ctx.stage_entries
+    totals: dict[str, int] = {}
+    for (state, entered), nxt in zip(entries, entries[1:] + [(None, until)]):
+        if state == InterviewState.GENERATING_DEBRIEF:
+            continue
+        totals[state.value] = totals.get(state.value, 0) + max(0, int(nxt[1] - entered))
+    return ", ".join(f"{state}: {secs}s" for state, secs in totals.items()) or "N/A"
 
 
 def _now_iso() -> str:
@@ -106,6 +118,7 @@ async def _save_code_snapshot(ctx: _InterviewContext):
 
 async def _on_transition(ctx: _InterviewContext, from_state: InterviewState, to_state: InterviewState, triggered_by: str):
     ctx.transitions.append((from_state, to_state, triggered_by))
+    ctx.stage_entries.append((to_state, time.monotonic()))
     await _try_send(ctx.session_id, {"type": "STATE_CHANGED", "state": to_state.value})
     await _safe(log_state_transition, ctx.token, ctx.session_id, from_state.value, to_state.value, triggered_by)
     if to_state == InterviewState.AWAITING_WALKTHROUGH:
@@ -257,6 +270,9 @@ def _debrief_row(debrief: dict) -> dict:
 async def _run_debrief(ctx: _InterviewContext):
     sid = ctx.session_id
     await _try_send(sid, {"type": "DEBRIEF_GENERATING"})
+    # The interview ends here; debrief generation time is not practice time.
+    ended_at = time.monotonic()
+    duration = _duration_seconds(ctx, ended_at)
 
     transitions_text = "\n".join(f"{f} -> {t} ({by})" for f, t, by in ctx.transitions) or "N/A"
     interview_data = {
@@ -267,7 +283,7 @@ async def _run_debrief(ctx: _InterviewContext):
         "language": ctx.problem_context.get("language", ""),
         "transcript": json.dumps(ctx.conversation_history),
         "code_snapshots": ctx.last_code.strip() or "(no code was written)",
-        "time_per_state": "N/A",
+        "time_per_state": _time_per_state(ctx, ended_at),
         "state_transitions": transitions_text,
         "algorithm": ctx.problem_context.get("topics", ["Algorithm"])[0] if ctx.problem_context.get("topics") else "Algorithm",
     }
@@ -280,7 +296,7 @@ async def _run_debrief(ctx: _InterviewContext):
         await _try_send(sid, {"type": "DEBRIEF_FAILED", "message": "The debrief could not be generated."})
         await _safe(
             update_session, ctx.token, sid,
-            status="INTERRUPTED", completed_at=_now_iso(), total_duration_seconds=_duration_seconds(ctx),
+            status="INTERRUPTED", completed_at=_now_iso(), total_duration_seconds=duration,
         )
         return
 
@@ -290,7 +306,7 @@ async def _run_debrief(ctx: _InterviewContext):
     await _safe(save_debrief, ctx.token, sid, _debrief_row(debrief_result))
     await _safe(
         update_session, ctx.token, sid,
-        status="COMPLETED", completed_at=_now_iso(), total_duration_seconds=_duration_seconds(ctx),
+        status="COMPLETED", completed_at=_now_iso(), total_duration_seconds=duration,
     )
 
 

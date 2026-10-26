@@ -17,7 +17,7 @@ def create_session(
     user_id: str, 
     leetcode_slug: str, 
     leetcode_title: str, 
-    problem_difficulty: str,
+    problem_difficulty: str | None,
     problem_description: str = "",
     problem_topics: list[str] = None,
     problem_language: str = "python"
