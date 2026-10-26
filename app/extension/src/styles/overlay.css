@@ -61,6 +61,16 @@
 }
 
 /* Minimal reset inside the overlay root only. */
+/* The host carries an inline `all: initial`, which beats :host and resets inherited fonts to the
+   browser default (serif). So the base text styles are set again on the overlay's own root. */
+[data-lv-root] {
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
 [data-lv-root],
 [data-lv-root] * {
   box-sizing: border-box;
