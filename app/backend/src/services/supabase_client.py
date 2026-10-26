@@ -1,7 +1,10 @@
+import logging
+
 from supabase import create_client, Client
 from config import get_settings
 from auth import supabase_for_user
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 # We still keep the service role client for specific admin tasks if absolutely necessary,
@@ -32,7 +35,11 @@ def create_session(
 
 def update_session(user_jwt: str, session_id: str, **fields):
     client = supabase_for_user(user_jwt)
-    return client.table("interview_sessions").update(fields).eq("id", session_id).execute()
+    result = client.table("interview_sessions").update(fields).eq("id", session_id).execute()
+    # RLS makes a blocked UPDATE match zero rows and still return 200, so say so explicitly.
+    if not result.data:
+        logger.warning("update_session matched no rows for %s (missing UPDATE policy or wrong owner?)", session_id)
+    return result
 
 def get_session(user_jwt: str, session_id: str):
     client = supabase_for_user(user_jwt)
