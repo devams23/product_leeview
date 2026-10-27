@@ -43,9 +43,17 @@ class NVIDIANIMProvider(LLMProvider):
                 headers=self.headers,
                 json=payload,
             )
-            response.raise_for_status()
+            if response.is_error:
+                # Name the model and keep NVIDIA's message: a bare "410 Gone" hides that the model was retired.
+                raise httpx.HTTPStatusError(
+                    f"NVIDIA NIM {response.status_code} for model '{self.model}': {response.text[:300]}",
+                    request=response.request,
+                    response=response,
+                )
             data = response.json()
-            return data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"].get("content") or ""
+            # Reasoning models prepend their thinking; the interviewer must only say the answer.
+            return re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
 
     def _extract_json(self, text: str) -> str:
         """Extract JSON from text that might contain markdown or extra content."""
