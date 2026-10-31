@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/ui/Button";
@@ -136,7 +136,8 @@ export function Login() {
   const [params] = useSearchParams();
   const fromExtension = params.get("from") === "extension";
   const [busy, setBusy] = useState(false);
-  const line = useInterviewScript();
+  const { line, spoken, phase } = useInterviewScript();
+  const speakerLit = (speaker: string) => (phase !== "thinking" && line.speaker === speaker ? "opacity-100" : "opacity-0");
 
   useEffect(() => {
     if (!fromExtension) return;
@@ -155,12 +156,6 @@ export function Login() {
 
   return (
     <div className="relative min-h-screen overflow-x-clip bg-ink-0">
-      {/* The beam ends at the orb and takes on the colour of whoever is speaking. */}
-      <div className="lv-beam pointer-events-none absolute inset-x-0 top-0 h-[700px] sm:h-[790px]" aria-hidden="true">
-        <span className={`lv-beam-ray lv-beam-ray--ai ${line.speaker === "interviewer" ? "opacity-100" : "opacity-0"}`} />
-        <span className={`lv-beam-ray lv-beam-ray--signal ${line.speaker === "you" ? "opacity-100" : "opacity-0"}`} />
-      </div>
-
       <header className="relative z-20">
         <div className="mx-auto grid h-[72px] max-w-[1200px] grid-cols-[1fr_auto] items-center px-5 sm:grid-cols-[1fr_auto_1fr] sm:px-8">
           <a href="#top" aria-label="LeeView home" className="justify-self-start">
@@ -185,7 +180,7 @@ export function Login() {
 
       <main id="top" className="relative">
         <section className="mx-auto flex max-w-[1000px] flex-col items-center px-5 pt-14 text-center sm:px-8 sm:pt-20">
-          <div className="lv-rise flex flex-col items-center gap-5">
+          <div className="lv-rise relative z-10 flex flex-col items-center gap-5">
             <p className="flex items-center gap-2.5 text-[14px] text-text-2">
               <WaveGlyph />
               Voice mock interviews for LeetCode
@@ -224,14 +219,29 @@ export function Login() {
             </div>
           </div>
 
-          <figure className="lv-orb-in mt-4 flex w-full flex-col items-center" aria-label="Example of an interview">
-            <InterviewOrb speaker={line.speaker} />
-            <figcaption className="-mt-3 min-h-[92px] max-w-[46ch] sm:min-h-[76px]">
-              <div key={line.text} className="lv-line">
-                <p className={`text-[13px] font-medium ${line.speaker === "you" ? "text-signal" : "text-ai"}`}>
-                  {line.speaker === "you" ? "You" : "Interviewer"}
+          <figure className="lv-orb-in relative mt-4 flex w-full flex-col items-center" aria-label="Example of an interview">
+            {/* Light fans out from the orb beside the copy, in the colour of whoever is speaking. */}
+            <div className="lv-rays" aria-hidden="true">
+              <span className={`lv-ray lv-ray--ai ${speakerLit("interviewer")}`} />
+              <span className={`lv-ray lv-ray--signal ${speakerLit("you")}`} />
+            </div>
+            <InterviewOrb speaker={line.speaker} phase={phase} spoken={spoken} />
+            <figcaption className="relative -mt-3 min-h-[92px] w-full max-w-[46ch] text-left sm:min-h-[76px]">
+              <div key={line.text}>
+                <p
+                  className={`text-[13px] font-medium transition-colors duration-500 ${
+                    phase === "thinking" ? "text-text-3" : line.speaker === "you" ? "text-signal" : "text-ai"
+                  }`}
+                >
+                  {phase === "thinking" ? "Interviewer is thinking" : line.speaker === "you" ? "You" : "Interviewer"}
                 </p>
-                <p className="mt-1 text-pretty text-[16px] leading-snug text-text-1">{line.text}</p>
+                <p className="mt-1 text-pretty text-[16px] leading-snug text-text-1">
+                  {line.text.split(" ").map((word, i) => (
+                    <Fragment key={i}>
+                      <span className={`lv-word ${i < spoken ? "lv-word--said" : ""}`}>{word}</span>{" "}
+                    </Fragment>
+                  ))}
+                </p>
               </div>
             </figcaption>
           </figure>

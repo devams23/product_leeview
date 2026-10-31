@@ -36,28 +36,68 @@
   }
 }
 
-/* Landing page: the beam falls first, the orb lights where it lands, then the copy settles. */
-.lv-beam {
-  animation: lv-beam-fall 1400ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  transform-origin: top;
-  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent);
-  mask-image: linear-gradient(to bottom, #000 62%, transparent);
+/* Landing page: the copy settles, then the orb lights and its rays open out either side of the text. */
+.lv-rays {
+  position: absolute;
+  left: 50%;
+  top: 110px; /* The orb's centre. */
+  width: 1800px;
+  height: 1800px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(circle, #000 10%, transparent 72%);
+  mask-image: radial-gradient(circle, #000 10%, transparent 72%);
 }
 
-.lv-beam-ray {
+@media (min-width: 640px) {
+  .lv-rays {
+    top: 140px;
+  }
+}
+
+.lv-ray {
   position: absolute;
   inset: 0;
-  filter: blur(14px);
-  transition: opacity 900ms ease;
+  filter: blur(16px);
+  transition: opacity 700ms ease;
 }
 
-/* A cone from the top edge, centred straight down (from 165deg + 15deg = 180deg). */
-.lv-beam-ray--ai {
-  background: conic-gradient(from 165deg at 50% -6%, transparent 0deg, rgba(185, 166, 255, 0.34) 15deg, transparent 30deg);
+/* Two wedges from the orb, up and outward at 60deg, which clears the centred copy. */
+.lv-ray--ai {
+  background: conic-gradient(
+    transparent 0 49deg,
+    rgba(185, 166, 255, 0.3) 60deg,
+    transparent 71deg 289deg,
+    rgba(185, 166, 255, 0.3) 300deg,
+    transparent 311deg
+  );
 }
 
-.lv-beam-ray--signal {
-  background: conic-gradient(from 165deg at 50% -6%, transparent 0deg, rgba(212, 255, 63, 0.26) 15deg, transparent 30deg);
+.lv-ray--signal {
+  background: conic-gradient(
+    transparent 0 49deg,
+    rgba(212, 255, 63, 0.22) 60deg,
+    transparent 71deg 289deg,
+    rgba(212, 255, 63, 0.22) 300deg,
+    transparent 311deg
+  );
+}
+
+.lv-word {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(5px);
+  transform: translateY(0.4em);
+  transition:
+    opacity 280ms ease-out,
+    filter 280ms ease-out,
+    transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lv-word--said {
+  opacity: 1;
+  filter: none;
+  transform: none;
 }
 
 .lv-rise {
@@ -68,20 +108,9 @@
   animation: lv-orb-in 1100ms 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.lv-line {
-  animation: lv-line 500ms ease-out both;
-}
-
 .lv-wave-bar {
   animation: lv-wave 1100ms ease-in-out infinite alternate;
   transform-origin: center;
-}
-
-@keyframes lv-beam-fall {
-  from {
-    opacity: 0;
-    transform: scaleY(0.45);
-  }
 }
 
 @keyframes lv-rise {
@@ -95,13 +124,6 @@
   from {
     opacity: 0;
     transform: scale(0.82);
-  }
-}
-
-@keyframes lv-line {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
   }
 }
 
@@ -119,5 +141,16 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  /* The sample interview still plays, as fades with no movement. */
+  .lv-ray {
+    transition-duration: 700ms !important;
+  }
+
+  .lv-word {
+    filter: none;
+    transform: none;
+    transition-duration: 280ms !important;
   }
 }

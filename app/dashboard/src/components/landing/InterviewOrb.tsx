@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
 export type Speaker = "interviewer" | "you";
+export type Phase = "thinking" | "speaking" | "listening";
 
 type Rgb = [number, number, number];
 
 // Same colours as the extension's orb: lime is the candidate, violet the interviewer.
-const PALETTE: Record<Speaker, [Rgb, Rgb]> = {
+const PALETTE: Record<Speaker | "thinking", [Rgb, Rgb]> = {
   you: [[212, 255, 63], [74, 222, 128]],
   interviewer: [[185, 166, 255], [110, 132, 255]],
+  thinking: [[161, 162, 171], [90, 92, 104]],
 };
 
 export const SCRIPT: { speaker: Speaker; text: string }[] = [
@@ -17,7 +19,8 @@ export const SCRIPT: { speaker: Speaker; text: string }[] = [
   { speaker: "you", text: "I check before I store, so an element never pairs with itself." },
 ];
 
-const LINE_MS = 4800;
+const THINK_MS = 1300;
+const HOLD_MS = 1100;
 const SIZE = 280;
 const POINTS = 120;
 const LAYERS = 3;
@@ -34,25 +37,67 @@ function rgba(c: Rgb, alpha: number): string {
   return `rgba(${c[0] | 0}, ${c[1] | 0}, ${c[2] | 0}, ${alpha})`;
 }
 
-/** Steps through the sample conversation. Stays on the first line when motion is reduced. */
-export function useInterviewScript() {
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    if (prefersReducedMotion()) return;
-    const timer = window.setInterval(() => setIndex((i) => (i + 1) % SCRIPT.length), LINE_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  return SCRIPT[index];
+/** Roughly how long a word takes to say, with a beat after punctuation. */
+function wordMs(word: string) {
+  return 120 + word.length * 36 + (/[,.?]$/.test(word) ? 240 : 0);
 }
 
-/** The extension's voice orb at hero size, driven by a simulated voice instead of the microphone. */
-export function InterviewOrb({ speaker }: { speaker: Speaker }) {
+/**
+ * Plays the sample conversation word by word, with no audio.
+ * `spoken` is how many words of the current line have been said so far.
+ */
+export function useInterviewScript() {
+  const [view, setView] = useState({ index: 0, spoken: 0, phase: "thinking" as Phase });
+
+  useEffect(() => {
+    let timer = 0;
+    let index = 0;
+
+    const say = (word: number) => {
+      const words = SCRIPT[index].text.split(" ");
+      if (word === words.length) {
+        setView({ index, spoken: word, phase: "listening" });
+        timer = window.setTimeout(nextLine, HOLD_MS);
+        return;
+      }
+      setView({ index, spoken: word + 1, phase: "speaking" });
+      timer = window.setTimeout(() => say(word + 1), wordMs(words[word]));
+    };
+
+    const nextLine = () => {
+      index = (index + 1) % SCRIPT.length;
+      if (SCRIPT[index].speaker === "you") {
+        say(0);
+        return;
+      }
+      setView({ index, spoken: 0, phase: "thinking" });
+      timer = window.setTimeout(() => say(0), THINK_MS);
+    };
+
+    timer = window.setTimeout(() => say(0), THINK_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return { line: SCRIPT[view.index], spoken: view.spoken, phase: view.phase };
+}
+
+interface InterviewOrbProps {
+  speaker: Speaker;
+  phase: Phase;
+  spoken: number;
+}
+
+/** The extension's voice orb at hero size, pulsing on each scripted word instead of the microphone. */
+export function InterviewOrb({ speaker, phase, spoken }: InterviewOrbProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  // The draw loop runs once per mount and reads the latest speaker from here.
-  const speakerRef = useRef(speaker);
-  speakerRef.current = speaker;
+  // The draw loop runs once per mount and reads the latest props from here.
+  const voiceRef = useRef({ speaker, phase, pulse: 0 });
+  voiceRef.current.speaker = speaker;
+  voiceRef.current.phase = phase;
+
+  useEffect(() => {
+    if (spoken > 0) voiceRef.current.pulse = 1;
+  }, [spoken]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -65,9 +110,10 @@ export function InterviewOrb({ speaker }: { speaker: Speaker }) {
     ctx.scale(dpr, dpr);
 
     const reduceMotion = prefersReducedMotion();
+    const voice = voiceRef.current;
     const start = performance.now();
-    let inner: Rgb = [...PALETTE[speakerRef.current][0]];
-    let outer: Rgb = [...PALETTE[speakerRef.current][1]];
+    let inner: Rgb = [...PALETTE.thinking[0]];
+    let outer: Rgb = [...PALETTE.thinking[1]];
     let shownLevel = 0;
     let onScreen = true;
     let frame = 0;
@@ -79,14 +125,14 @@ export function InterviewOrb({ speaker }: { speaker: Speaker }) {
 
     const render = (t: number, level: number) => {
       // Ease colour and level so speaker changes blend instead of snapping.
-      const [targetInner, targetOuter] = PALETTE[speakerRef.current];
-      inner = mix(inner, targetInner, 0.05);
-      outer = mix(outer, targetOuter, 0.05);
-      shownLevel += (level - shownLevel) * 0.14;
+      const [targetInner, targetOuter] = PALETTE[voice.phase === "thinking" ? "thinking" : voice.speaker];
+      inner = mix(inner, targetInner, 0.06);
+      outer = mix(outer, targetOuter, 0.06);
+      shownLevel += (level - shownLevel) * 0.2;
 
       const c = SIZE / 2;
       const base = SIZE * 0.27 * (1 + Math.sin(t * 1.2) * 0.015 + shownLevel * 0.14);
-      const ripple = 0.028 + shownLevel * 0.11;
+      const ripple = 0.022 + shownLevel * 0.045;
 
       ctx.clearRect(0, 0, SIZE, SIZE);
 
@@ -124,17 +170,14 @@ export function InterviewOrb({ speaker }: { speaker: Speaker }) {
       ctx.globalCompositeOperation = "source-over";
     };
 
-    if (reduceMotion) {
-      render(0, 0.25);
-      return () => observer.disconnect();
-    }
-
     const draw = (now: number) => {
       if (onScreen) {
         const t = (now - start) / 1000;
-        // Syllable-like pulses inside slower phrases; a pause falls where the two envelopes dip.
-        const voice = Math.abs(Math.sin(t * 6.3) * Math.sin(t * 2.1));
-        render(t, 0.2 + voice * 0.65);
+        voice.pulse *= 0.9;
+        const syllables = Math.abs(Math.sin(t * 9));
+        const level = voice.phase === "speaking" ? 0.22 + voice.pulse * 0.6 + syllables * 0.16 : 0.04;
+        // With reduced motion the orb swells with the words but its outline holds still.
+        render(reduceMotion ? 0 : t, level);
       }
       frame = requestAnimationFrame(draw);
     };
