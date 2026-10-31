@@ -1,84 +1,132 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { Button, buttonClass } from "../components/ui/Button";
+import { Button } from "../components/ui/Button";
 import { Brand } from "../components/ui/BrandMark";
+import { InterviewOrb, useInterviewScript } from "../components/landing/InterviewOrb";
 
 const STEPS = [
   {
-    title: "Add the extension",
-    body: "Add LeeView to Chrome and pin it to your toolbar so the panel is one click away.",
+    title: "Open a problem",
+    body: "Start LeeView on any LeetCode problem. It reads the question and your language.",
+    visual: <ProblemVisual />,
   },
   {
-    title: "Open any problem",
-    body: "Go to any LeetCode problem and open the LeeView panel.",
+    title: "Explain your approach",
+    body: "Ask questions and reason out loud. The interviewer listens and pushes back.",
+    visual: <VoiceVisual />,
   },
   {
-    title: "Talk it through",
-    body: "Explain your approach out loud. You get a scored debrief when you finish.",
+    title: "Code as you normally do",
+    body: "Write in the LeetCode editor. The interviewer sees your code and asks about it.",
+    visual: <CodeVisual />,
+  },
+  {
+    title: "Get scored",
+    body: "Finish, and every part of the interview is scored while it's fresh.",
+    visual: <ScoreVisual />,
   },
 ];
 
-const STAGES = ["Clarify", "Approach", "Code", "Walkthrough", "Wrap-up"];
-const CURRENT_STAGE = 1;
+const EXAMPLE_SCORES = [
+  { label: "Approach", score: 8 },
+  { label: "Communication", score: 6 },
+  { label: "Code correctness", score: 9 },
+  { label: "Code quality", score: 7 },
+  { label: "Time management", score: 7 },
+];
 
-function GoogleIcon() {
+const VOICE_BARS = [10, 22, 34, 18, 44, 28, 52, 30, 16, 38, 24, 46, 20, 12, 30, 40, 22, 14];
+
+function ProblemVisual() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
-      <path d="M21.35 11.1H12v2.98h5.35c-.23 1.4-1.64 4.1-5.35 4.1-3.22 0-5.85-2.67-5.85-5.96s2.63-5.96 5.85-5.96c1.83 0 3.06.78 3.76 1.45l2.56-2.47C16.7 4.2 14.6 3.3 12 3.3 6.97 3.3 2.9 7.37 2.9 12.5S6.97 21.7 12 21.7c5.3 0 8.8-3.72 8.8-8.96 0-.6-.07-1.06-.15-1.54z" />
-    </svg>
-  );
-}
-
-/** Static sample of the extension overlay, matching the real LiveCard. Clearly labelled as an example. */
-function ExampleOverlay() {
-  return (
-    <div className="w-full rounded-shell border border-line-2 bg-ink-1 p-5 pb-12 shadow-[0_20px_60px_-12px_rgba(0,0,0,0.7)]">
-      <div className="flex items-center justify-between">
-        <Brand size={22} live />
-        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-2">Two Sum · 12:04</span>
+    <div className="w-full max-w-[210px] rounded-card border border-line-2 bg-ink-2 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[14px] font-semibold text-text-1">Two Sum</span>
+        <span className="rounded-chip bg-ok/15 px-2 py-0.5 text-[11px] text-ok">Easy</span>
       </div>
-
-      <ol className="mt-6 flex gap-1" aria-label="Interview stage">
-        {STAGES.map((stage, i) => (
-          <li key={stage} className="flex-1">
-            <span className={`block h-[3px] rounded-full ${i <= CURRENT_STAGE ? "bg-signal" : "bg-ink-3"}`} />
-          </li>
-        ))}
-      </ol>
-      <div className="mt-3 flex items-baseline justify-between">
-        <span className="text-[12px] font-semibold text-text-1">{STAGES[CURRENT_STAGE]}</span>
-        <span className="font-mono text-[11px] text-text-3">{CURRENT_STAGE + 1} / {STAGES.length}</span>
-      </div>
-
-      <div className="mt-6 flex flex-col items-center gap-4 py-4">
-        <div className="flex h-10 items-center gap-1" aria-hidden="true">
-          {[10, 18, 26, 14, 30, 20, 12, 24, 16].map((h, i) => (
-            <span key={i} className="w-1 rounded-full bg-ai" style={{ height: h }} />
-          ))}
-        </div>
-        <p className="text-sm text-ai">Interviewer speaking</p>
-      </div>
-
-      <p className="rounded-btn border border-line bg-ink-2 p-3 text-[13px] leading-relaxed text-text-2">
-        Walk me through how your hash map handles duplicate values.
-      </p>
+      <span className="mt-3 block h-1.5 w-full rounded-full bg-ink-3" />
+      <span className="mt-2 block h-1.5 w-2/3 rounded-full bg-ink-3" />
     </div>
   );
 }
 
-/** Compact sample debrief that tucks under the overlay's empty bottom padding. */
+function VoiceVisual() {
+  return (
+    <div className="flex h-14 items-center gap-1" aria-hidden="true">
+      {VOICE_BARS.map((height, i) => (
+        <span
+          key={i}
+          className={`w-1 rounded-full ${i < 9 ? "bg-ai" : "bg-signal"}`}
+          style={{ height }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function CodeVisual() {
+  return (
+    <pre className="w-full max-w-[210px] overflow-hidden rounded-card border border-line-2 bg-ink-2 py-3 font-mono text-[12px] leading-6 text-text-3">
+      <code>
+        <span className="block px-4">for i, n in nums:</span>
+        <span className="block bg-signal-soft px-4 text-signal">  if target - n in seen:</span>
+        <span className="block px-4">    return [seen[...], i]</span>
+      </code>
+    </pre>
+  );
+}
+
+function ScoreVisual() {
+  return (
+    <div className="flex items-baseline gap-1">
+      <span className="font-display text-[72px] leading-none tabular-nums text-signal">7</span>
+      <span className="text-[16px] text-text-3">/10</span>
+    </div>
+  );
+}
+
+function WaveGlyph() {
+  return (
+    <span className="flex h-3.5 items-center gap-[2px]" aria-hidden="true">
+      {[0, 1, 2, 3].map((i) => (
+        <span key={i} className="lv-wave-bar h-full w-[2px] rounded-full bg-signal" style={{ animationDelay: `${i * -0.22}s` }} />
+      ))}
+    </span>
+  );
+}
+
 function ExampleDebrief() {
   return (
-    <div className="flex w-[280px] max-w-full items-center gap-4 rounded-card border border-line-2 bg-ink-2 p-4 shadow-[0_20px_60px_-12px_rgba(0,0,0,0.7)]">
-      <span className="flex items-baseline gap-1">
-        <span className="font-display text-[44px] leading-none tabular-nums text-signal">7</span>
-        <span className="font-mono text-[12px] text-text-3">/10</span>
-      </span>
-      <span className="flex min-w-0 flex-col gap-1">
-        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-3">Example debrief</span>
-        <span className="text-[13px] leading-snug text-text-2">Strong approach, quiet while coding.</span>
-      </span>
+    <div className="rounded-shell border border-line-2 bg-ink-1 p-6 sm:p-8">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[13px] text-text-3">Example debrief</p>
+          <p className="mt-1 text-[16px] font-semibold text-text-1">Two Sum</p>
+        </div>
+        <span className="flex items-baseline gap-1">
+          <span className="font-display text-[44px] leading-none tabular-nums text-signal">7</span>
+          <span className="text-[13px] text-text-3">/10</span>
+        </span>
+      </div>
+
+      <dl className="mt-7 flex flex-col gap-4">
+        {EXAMPLE_SCORES.map(({ label, score }) => (
+          <div key={label}>
+            <div className="flex items-baseline justify-between text-[14px]">
+              <dt className="text-text-2">{label}</dt>
+              <dd className="tabular-nums text-text-1">{score}</dd>
+            </div>
+            <span className="mt-2 block h-1 overflow-hidden rounded-full bg-ink-3">
+              <span className="block h-full rounded-full bg-text-2" style={{ width: `${score * 10}%` }} />
+            </span>
+          </div>
+        ))}
+      </dl>
+
+      <p className="mt-7 border-t border-line pt-5 text-[14px] leading-relaxed text-text-2">
+        You went quiet for most of the coding stage. Say what you're about to write before you write it.
+      </p>
     </div>
   );
 }
@@ -88,6 +136,7 @@ export function Login() {
   const [params] = useSearchParams();
   const fromExtension = params.get("from") === "extension";
   const [busy, setBusy] = useState(false);
+  const line = useInterviewScript();
 
   useEffect(() => {
     if (!fromExtension) return;
@@ -105,92 +154,131 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-ink-0">
-      <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
-        <header className="flex h-16 items-center justify-between border-b border-line">
-          <Brand size={28} />
-          <div className="flex items-center gap-4 sm:gap-6">
-            <a href="#how" className="text-[14px] text-text-2 transition-colors hover:text-text-1">
-              How it works
-            </a>
-            <Button variant="ghost" size="md" onClick={handleSignIn} disabled={busy}>
-              Sign in
-            </Button>
-          </div>
-        </header>
+    <div className="relative min-h-screen overflow-x-clip bg-ink-0">
+      {/* The beam ends at the orb and takes on the colour of whoever is speaking. */}
+      <div className="lv-beam pointer-events-none absolute inset-x-0 top-0 h-[700px] sm:h-[790px]" aria-hidden="true">
+        <span className={`lv-beam-ray lv-beam-ray--ai ${line.speaker === "interviewer" ? "opacity-100" : "opacity-0"}`} />
+        <span className={`lv-beam-ray lv-beam-ray--signal ${line.speaker === "you" ? "opacity-100" : "opacity-0"}`} />
+      </div>
 
-        <section className="grid items-center gap-12 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:py-24">
-          <div className="flex min-w-0 flex-col gap-6">
-            <div className="flex flex-col items-start gap-3">
-              <span className="inline-flex items-center rounded-full bg-signal-soft px-3 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-signal">
-                Voice mock interviews for LeetCode
-              </span>
-              {fromExtension && (
-                <p role="note" className="rounded-btn bg-signal-soft px-3 py-2 text-[13px] text-signal">
-                  Sign in to connect the LeeView extension.
-                </p>
-              )}
-            </div>
+      <header className="relative z-20">
+        <div className="mx-auto grid h-[72px] max-w-[1200px] grid-cols-[1fr_auto] items-center px-5 sm:grid-cols-[1fr_auto_1fr] sm:px-8">
+          <a href="#top" aria-label="LeeView home" className="justify-self-start">
+            <Brand size={28} />
+          </a>
+          <nav aria-label="Page" className="hidden rounded-full border border-line-2 bg-ink-1/80 p-1 sm:flex">
+            {[["How it works", "#how"], ["Debrief", "#debrief"]].map(([label, href]) => (
+              <a
+                key={href}
+                href={href}
+                className="rounded-full px-4 py-1.5 text-[14px] text-text-2 transition-colors hover:bg-ink-3 hover:text-text-1"
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+          <Button variant="ghost" size="md" onClick={handleSignIn} disabled={busy} className="justify-self-end">
+            Sign in
+          </Button>
+        </div>
+      </header>
 
-            <h1 className="font-display text-balance text-[44px] leading-[0.98] tracking-[-0.03em] text-text-1 [font-variation-settings:'opsz'_96] sm:text-[60px] lg:text-[68px]">
-              Practice <span className="text-signal">the interview</span>, not just the problem.
-            </h1>
-
-            <p className="max-w-[48ch] text-[17px] leading-relaxed text-text-2 sm:text-[18px]">
-              LeeView sits beside any LeetCode problem and talks you through it out loud, the way a real interviewer
-              would. Afterwards you get a scored debrief and a transcript to replay.
+      <main id="top" className="relative">
+        <section className="mx-auto flex max-w-[1000px] flex-col items-center px-5 pt-14 text-center sm:px-8 sm:pt-20">
+          <div className="lv-rise flex flex-col items-center gap-5">
+            <p className="flex items-center gap-2.5 text-[14px] text-text-2">
+              <WaveGlyph />
+              Voice mock interviews for LeetCode
             </p>
-
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Button variant="primary" size="lg" onClick={handleSignIn} disabled={busy} className="w-full sm:w-auto">
-                  <GoogleIcon />
-                  Continue with Google
-                </Button>
-                <a href="#how" className={buttonClass("ghost", "lg", "hidden sm:inline-flex")}>
-                  See how it works
-                </a>
-              </div>
+            {fromExtension && (
+              <p role="note" className="rounded-btn bg-signal-soft px-3 py-2 text-[13px] text-signal">
+                Sign in to connect the LeeView extension.
+              </p>
+            )}
+            <h1 className="font-display text-balance text-[46px] leading-[1] tracking-[-0.02em] text-text-1 [font-variation-settings:'opsz'_96] sm:text-[72px] lg:text-[84px]">
+              Practice the interview, not just the problem.
+            </h1>
+            <p className="max-w-[52ch] text-pretty text-[17px] leading-relaxed text-text-2 sm:text-[18px]">
+              LeeView sits beside any LeetCode problem and questions you out loud, the way a real interviewer would.
+            </p>
+            <div className="mt-2 flex flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={handleSignIn}
+                disabled={busy}
+                className="group inline-flex h-[52px] items-center gap-4 rounded-[14px] bg-signal pl-6 pr-1.5 text-[15px] font-semibold text-signal-ink transition-colors hover:bg-[#E2FF6E] disabled:pointer-events-none disabled:opacity-40"
+              >
+                Start a mock interview
+                <span className="grid h-10 w-10 place-items-center rounded-btn bg-ink-0 text-signal transition-transform duration-200 group-hover:translate-x-0.5">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+              </button>
               {authError && (
                 <p role="alert" className="text-sm text-danger">
                   Sign-in did not complete: {authError}
                 </p>
               )}
-              <p className="text-[13px] text-text-3">
-                Free while in beta · Works on any LeetCode problem · No credit card
-              </p>
+              <p className="text-[13px] text-text-3">Free while in beta</p>
             </div>
           </div>
 
-          <div aria-label="Example of the product" className="relative mx-auto w-full max-w-[400px] lg:mx-0 lg:ml-auto">
-            <ExampleOverlay />
-            <div className="relative -mt-8 flex justify-end pr-4 sm:pr-6">
-              <ExampleDebrief />
-            </div>
-          </div>
+          <figure className="lv-orb-in mt-4 flex w-full flex-col items-center" aria-label="Example of an interview">
+            <InterviewOrb speaker={line.speaker} />
+            <figcaption className="-mt-3 min-h-[92px] max-w-[46ch] sm:min-h-[76px]">
+              <div key={line.text} className="lv-line">
+                <p className={`text-[13px] font-medium ${line.speaker === "you" ? "text-signal" : "text-ai"}`}>
+                  {line.speaker === "you" ? "You" : "Interviewer"}
+                </p>
+                <p className="mt-1 text-pretty text-[16px] leading-snug text-text-1">{line.text}</p>
+              </div>
+            </figcaption>
+          </figure>
         </section>
 
-        <section id="how" className="scroll-mt-8 border-t border-line py-16">
-          <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-3">How it works</span>
-          <h2 className="mt-3 font-display text-[28px] leading-tight tracking-[-0.025em] text-text-1 sm:text-[32px]">
-            Three steps, then you're talking.
+        <section id="how" className="mx-auto mt-24 max-w-[1200px] scroll-mt-24 px-5 sm:mt-32 sm:px-8">
+          <h2 className="max-w-[20ch] font-display text-[32px] leading-[1.05] tracking-[-0.03em] text-text-1 sm:text-[44px]">
+            From problem to scorecard in one sitting.
           </h2>
-          <ol className="mt-8 grid divide-y divide-line overflow-hidden rounded-card border border-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <ol className="mt-10 grid overflow-hidden rounded-shell border border-line-2 bg-ink-1 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((step, i) => (
-              <li key={step.title} className="flex flex-col gap-3 p-6">
-                <span className="font-mono text-[12px] text-signal">{String(i + 1).padStart(2, "0")}</span>
-                <p className="text-[16px] font-semibold text-text-1">{step.title}</p>
-                <p className="text-[14px] leading-relaxed text-text-2">{step.body}</p>
+              <li
+                key={step.title}
+                className="flex flex-col border-line-2 p-6 [&:not(:last-child)]:border-b sm:[&:nth-child(odd)]:border-r sm:[&:nth-child(n+3)]:border-b-0 lg:border-b-0 lg:[&:not(:last-child)]:border-b-0 lg:[&:not(:last-child)]:border-r"
+              >
+                <span className="text-[13px] tabular-nums text-text-3">{String(i + 1).padStart(2, "0")}</span>
+                <div className="grid h-[176px] place-items-center">{step.visual}</div>
+                <p className="text-[17px] font-semibold text-text-1">{step.title}</p>
+                <p className="mt-2 text-[14px] leading-relaxed text-text-2">{step.body}</p>
               </li>
             ))}
           </ol>
         </section>
 
-        <footer className="flex flex-col gap-2 border-t border-line py-8 text-[13px] text-text-3 sm:flex-row sm:justify-between">
-          <span>© LeeView</span>
-          <span>Built for interview prep</span>
-        </footer>
-      </div>
+        <section
+          id="debrief"
+          className="mx-auto mt-24 grid max-w-[1200px] scroll-mt-24 items-center gap-10 px-5 sm:mt-32 sm:px-8 lg:grid-cols-[1fr_1fr] lg:gap-20"
+        >
+          <div>
+            <h2 className="max-w-[16ch] font-display text-[32px] leading-[1.05] tracking-[-0.03em] text-text-1 sm:text-[44px]">
+              Solving it was only half the score.
+            </h2>
+            <p className="mt-5 max-w-[46ch] text-[17px] leading-relaxed text-text-2">
+              Interviewers grade how you think, not just whether the tests pass. LeeView scores both, then tells you
+              the one thing to do differently next time.
+            </p>
+            <p className="mt-4 max-w-[46ch] text-[17px] leading-relaxed text-text-2">
+              Every session keeps its transcript, so you can read back exactly what you said.
+            </p>
+          </div>
+          <ExampleDebrief />
+        </section>
+      </main>
+
+      <footer className="mx-auto mt-24 max-w-[1200px] px-5 pb-10 text-[13px] text-text-3 sm:mt-32 sm:px-8">
+        <div className="border-t border-line pt-6">© LeeView</div>
+      </footer>
     </div>
   );
 }
