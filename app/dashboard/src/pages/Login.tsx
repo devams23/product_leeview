@@ -31,10 +31,12 @@ const STEPS = [
 const EXAMPLE_SCORES = [
   { label: "Approach", score: 8 },
   { label: "Communication", score: 6 },
-  { label: "Code correctness", score: 9 },
+  { label: "Correctness", score: 9 },
   { label: "Code quality", score: 7 },
-  { label: "Time management", score: 7 },
+  { label: "Time", score: 7 },
 ];
+const EXAMPLE_WEAKEST = Math.min(...EXAMPLE_SCORES.map(({ score }) => score));
+const EXAMPLE_NEXT = ["3Sum", "Group Anagrams"];
 
 const VOICE_BARS = [10, 22, 34, 18, 44, 28, 52, 30, 16, 38, 24, 46, 20, 12, 30, 40, 22, 14];
 
@@ -99,34 +101,82 @@ function WaveGlyph() {
 function ExampleDebrief() {
   return (
     <div className="rounded-shell border border-line-2 bg-ink-1 p-6 sm:p-8">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-start justify-between gap-6">
         <div>
-          <p className="text-[13px] text-text-3">Example debrief</p>
-          <p className="mt-1 text-[16px] font-semibold text-text-1">Two Sum</p>
+          <p className="text-[13px] text-text-3">Example debrief for Two Sum</p>
+          <p className="mt-3 max-w-[20ch] font-display text-[26px] leading-[1.12] tracking-[-0.02em] text-text-1 sm:text-[30px]">
+            Strong approach, then you went quiet.
+          </p>
         </div>
-        <span className="flex items-baseline gap-1">
-          <span className="font-display text-[44px] leading-none tabular-nums text-signal">7</span>
+        <span className="flex shrink-0 items-baseline gap-1">
+          <span className="font-display text-[56px] leading-none tabular-nums text-text-1">7</span>
           <span className="text-[13px] text-text-3">/10</span>
         </span>
       </div>
 
-      <dl className="mt-7 flex flex-col gap-4">
+      <dl className="mt-8 flex flex-wrap gap-x-7 gap-y-5 sm:justify-between">
         {EXAMPLE_SCORES.map(({ label, score }) => (
-          <div key={label}>
-            <div className="flex items-baseline justify-between text-[14px]">
-              <dt className="text-text-2">{label}</dt>
-              <dd className="tabular-nums text-text-1">{score}</dd>
-            </div>
-            <span className="mt-2 block h-1 overflow-hidden rounded-full bg-ink-3">
-              <span className="block h-full rounded-full bg-text-2" style={{ width: `${score * 10}%` }} />
-            </span>
+          <div key={label} className="flex flex-col-reverse gap-1">
+            <dt className={`text-[13px] ${score === EXAMPLE_WEAKEST ? "text-text-1" : "text-text-3"}`}>{label}</dt>
+            <dd
+              className={`font-display text-[28px] leading-none tabular-nums ${
+                score === EXAMPLE_WEAKEST ? "text-signal" : "text-text-2"
+              }`}
+            >
+              {score}
+            </dd>
           </div>
         ))}
       </dl>
 
-      <p className="mt-7 border-t border-line pt-5 text-[14px] leading-relaxed text-text-2">
-        You went quiet for most of the coding stage. Say what you're about to write before you write it.
-      </p>
+      <div className="mt-8 rounded-card bg-ink-2 p-5">
+        <p className="text-[13px] font-medium text-signal">Work on your communication</p>
+        <p className="mt-2 text-[16px] leading-relaxed text-text-1">
+          You stopped talking once you started coding. Say what you're about to write before you write it.
+        </p>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-2 text-[13px] text-text-3">
+        <span className="mr-1">Practice next</span>
+        {EXAMPLE_NEXT.map((problem) => (
+          <span key={problem} className="rounded-chip border border-line-2 px-2.5 py-1 text-text-2">
+            {problem}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface StartActionProps {
+  onStart: () => void;
+  busy: boolean;
+  error: string | null;
+  className?: string;
+}
+
+function StartAction({ onStart, busy, error, className = "" }: StartActionProps) {
+  return (
+    <div className={`flex flex-col gap-3 ${className}`}>
+      <button
+        type="button"
+        onClick={onStart}
+        disabled={busy}
+        className="group inline-flex h-[52px] items-center gap-4 rounded-[14px] bg-signal pl-6 pr-1.5 text-[15px] font-semibold text-signal-ink transition-colors hover:bg-[#E2FF6E] disabled:pointer-events-none disabled:opacity-40"
+      >
+        Start a mock interview
+        <span className="grid h-10 w-10 place-items-center rounded-btn bg-ink-0 text-signal transition-transform duration-200 group-hover:translate-x-0.5">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </button>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          Sign-in did not complete: {error}
+        </p>
+      )}
+      <p className="text-[13px] text-text-3">Free while in beta</p>
     </div>
   );
 }
@@ -136,6 +186,8 @@ export function Login() {
   const [params] = useSearchParams();
   const fromExtension = params.get("from") === "extension";
   const [busy, setBusy] = useState(false);
+  // A failed sign-in is reported beside the button that started it.
+  const [startedFromClose, setStartedFromClose] = useState(false);
   const { line, spoken, phase } = useInterviewScript();
   const speakerLit = (speaker: string) => (phase !== "thinking" && line.speaker === speaker ? "opacity-100" : "opacity-0");
 
@@ -196,27 +248,15 @@ export function Login() {
             <p className="max-w-[52ch] text-pretty text-[17px] leading-relaxed text-text-2 sm:text-[18px]">
               LeeView sits beside any LeetCode problem and questions you out loud, the way a real interviewer would.
             </p>
-            <div className="mt-2 flex flex-col items-center gap-3">
-              <button
-                type="button"
-                onClick={handleSignIn}
-                disabled={busy}
-                className="group inline-flex h-[52px] items-center gap-4 rounded-[14px] bg-signal pl-6 pr-1.5 text-[15px] font-semibold text-signal-ink transition-colors hover:bg-[#E2FF6E] disabled:pointer-events-none disabled:opacity-40"
-              >
-                Start a mock interview
-                <span className="grid h-10 w-10 place-items-center rounded-btn bg-ink-0 text-signal transition-transform duration-200 group-hover:translate-x-0.5">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </span>
-              </button>
-              {authError && (
-                <p role="alert" className="text-sm text-danger">
-                  Sign-in did not complete: {authError}
-                </p>
-              )}
-              <p className="text-[13px] text-text-3">Free while in beta</p>
-            </div>
+            <StartAction
+              onStart={() => {
+                setStartedFromClose(false);
+                void handleSignIn();
+              }}
+              busy={busy}
+              error={startedFromClose ? null : authError}
+              className="mt-2 items-center"
+            />
           </div>
 
           <figure className="lv-orb-in relative mt-4 flex w-full flex-col items-center" aria-label="Example of an interview">
@@ -276,7 +316,7 @@ export function Login() {
             </h2>
             <p className="mt-5 max-w-[46ch] text-[17px] leading-relaxed text-text-2">
               Interviewers grade how you think, not just whether the tests pass. LeeView scores both, then tells you
-              the one thing to do differently next time.
+              what to change before your next one.
             </p>
             <p className="mt-4 max-w-[46ch] text-[17px] leading-relaxed text-text-2">
               Every session keeps its transcript, so you can read back exactly what you said.
@@ -286,8 +326,27 @@ export function Login() {
         </section>
       </main>
 
-      <footer className="mx-auto mt-24 max-w-[1200px] px-5 pb-10 text-[13px] text-text-3 sm:mt-32 sm:px-8">
-        <div className="border-t border-line pt-6">© LeeView</div>
+      <footer className="mt-28 border-t border-line sm:mt-40">
+        <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
+          <div className="grid gap-10 pb-20 pt-20 sm:pb-28 sm:pt-28 lg:grid-cols-[1fr_auto] lg:items-end lg:gap-16">
+            <h2 className="max-w-[13ch] text-balance font-display text-[52px] leading-[1] tracking-[-0.02em] text-text-1 [font-variation-settings:'opsz'_96] sm:text-[84px] lg:text-[104px]">
+              Say it out loud before it counts.
+            </h2>
+            <StartAction
+              onStart={() => {
+                setStartedFromClose(true);
+                void handleSignIn();
+              }}
+              busy={busy}
+              error={startedFromClose ? authError : null}
+              className="items-start lg:items-end lg:pb-3"
+            />
+          </div>
+          <div className="flex items-center justify-between pb-8 text-[13px] text-text-3">
+            <Brand size={22} />
+            <span>© 2026 LeeView</span>
+          </div>
+        </div>
       </footer>
     </div>
   );
