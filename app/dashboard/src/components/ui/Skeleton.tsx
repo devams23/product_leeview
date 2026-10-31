@@ -16,7 +16,7 @@ export function AppSkeleton() {
         </div>
       </aside>
       <div className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
-        <div className="mx-auto flex max-w-[1200px] flex-col gap-8">
+        <div className="mx-auto flex max-w-[1120px] flex-col gap-8">
           <Skeleton className="h-14 w-72 max-w-full" />
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
             {[0, 1, 2, 3].map((i) => (
@@ -33,27 +33,23 @@ export function AppSkeleton() {
 export function OverviewSkeleton() {
   return (
     <div role="status" aria-label="Loading your overview" className="flex flex-col gap-8">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
-        {[0, 1, 2, 3].map((i) => (
-          <Card key={i} className="flex min-h-[132px] flex-col gap-4 p-5">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-10 w-24" />
-          </Card>
-        ))}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="p-5 sm:p-6 lg:col-span-2">
-          <Skeleton className="mb-6 h-4 w-32" />
-          <Skeleton className="h-[220px] w-full" />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+        <Card className="flex min-h-[360px] flex-col gap-4 rounded-shell p-6 sm:p-8">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-12 w-[min(420px,90%)]" />
+          <Skeleton className="h-4 w-64 max-w-full" />
+          <Skeleton className="mt-auto h-10 w-40" />
         </Card>
-        <Card className="flex flex-col gap-4 p-5 sm:p-6">
-          <Skeleton className="h-4 w-32" />
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-2 w-full" />
-          ))}
+        <Card className="flex flex-col gap-4 rounded-shell p-6">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-14 w-24" />
+          <Skeleton className="mt-auto h-24 w-full" />
         </Card>
       </div>
-      <TableSkeleton />
+      <Card className="rounded-shell p-6 sm:p-7">
+        <Skeleton className="mb-6 h-6 w-56" />
+        <Skeleton className="h-[220px] w-full" />
+      </Card>
     </div>
   );
 }

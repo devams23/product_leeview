@@ -108,9 +108,21 @@
   animation: lv-orb-in 1100ms 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.lv-pop {
+  animation: lv-pop 140ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top;
+}
+
 .lv-wave-bar {
   animation: lv-wave 1100ms ease-in-out infinite alternate;
   transform-origin: center;
+}
+
+@keyframes lv-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
 }
 
 @keyframes lv-rise {

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { firstName, initialOf } from "../../lib/format";
-import { NAV_SECTIONS, PROFILE_NAV, type NavItem } from "../../lib/nav";
+import { NAV_SECTIONS, PROFILE_NAV, START_INTERVIEW_URL, type NavItem } from "../../lib/nav";
 import { buttonClass } from "../ui/Button";
 import { Brand } from "../ui/BrandMark";
 
@@ -79,15 +79,20 @@ export function AppShell() {
     <div className="min-h-screen bg-ink-0">
       {/* Desktop rail: a floating panel rather than a bordered column. */}
       <aside className="fixed inset-y-3 left-3 hidden w-60 flex-col rounded-shell bg-ink-1 px-3 py-5 lg:flex">
-        <div className="mb-7 px-3">
+        <div className="mb-6 px-3">
           <Logo size={26} />
         </div>
+        <a
+          href={START_INTERVIEW_URL}
+          target="_blank"
+          rel="noreferrer"
+          className={buttonClass("primary", "md", "mb-6 w-full")}
+        >
+          Start an interview
+        </a>
         <nav aria-label="Primary" className="flex flex-1 flex-col gap-6 overflow-y-auto">
           {NAV_SECTIONS.map((section) => (
             <div key={section.label} className="flex flex-col gap-0.5">
-              <p className="mb-1.5 px-3 font-mono text-[10.5px] uppercase tracking-[0.1em] text-text-3">
-                {section.label}
-              </p>
               {section.items.map((item) => (
                 <RailItem key={item.to} item={item} />
               ))}
@@ -150,7 +155,7 @@ export function AppShell() {
       </header>
 
       <div className="lg:pl-[264px]">
-        <main className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+        <main className="mx-auto w-full max-w-[1120px] px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
           <ConnectedBanner />
           <Outlet />
         </main>

@@ -28,7 +28,7 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
   return (
     <div className="h-[220px] w-full lg:h-full lg:min-h-[220px]">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 12, right: 12, bottom: 0, left: 0 }}>
+        <AreaChart data={data} margin={{ top: 12, right: 24, bottom: 0, left: 0 }}>
           <defs>
             <linearGradient id="lv-trend-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#D4FF3F" stopOpacity={0.22} />
