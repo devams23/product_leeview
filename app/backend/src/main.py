@@ -1,3 +1,5 @@
+import asyncio
+import re
 import sys
 import logging
 from typing import Optional
@@ -16,6 +18,21 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+class RedactTokens(logging.Filter):
+    """uvicorn logs websocket URLs in full, and ours carry the user's JWT as ?token=."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        if "token=" in message:
+            record.msg = re.sub(r"token=[^\s&\"']+", "token=[redacted]", message)
+            record.args = None
+        return True
+
+
+for _name in ("uvicorn.error", "uvicorn.access"):
+    logging.getLogger(_name).addFilter(RedactTokens())
 
 settings = get_settings()
 
@@ -77,7 +94,8 @@ async def create_interview_session(
     user: TokenPayload = Depends(get_current_user),
 ):
     try:
-        result = create_session(
+        result = await asyncio.to_thread(
+            create_session,
             user_jwt=token,
             user_id=user.sub,
             leetcode_slug=req.leetcode_slug,

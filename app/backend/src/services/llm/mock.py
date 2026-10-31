@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from typing import Any
 from pathlib import Path
 
@@ -81,11 +82,10 @@ class MockLLMProvider(LLMProvider):
     def _extract_state_from_messages(self, messages: list[dict[str, str]]) -> InterviewState:
         """Extract current interview state from system prompt."""
         for msg in messages:
-            if msg.get("role") == "system" and "Current phase:" in msg.get("content", ""):
-                content = msg["content"]
-                for state in InterviewState:
-                    if state.value in content:
-                        return state
+            if msg.get("role") == "system":
+                match = re.search(r"Current phase: (\w+)", msg.get("content", ""))
+                if match:
+                    return InterviewState(match.group(1))
         return InterviewState.INTRO
 
     def _get_next_state(self, current: InterviewState) -> InterviewState:

@@ -37,4 +37,4 @@ class DeepgramTTSClient:
                         break
                     elif data.get("type") == "Error":
                         logger.error("Deepgram TTS error: %s", data)
-                        break
+                        raise RuntimeError(f"Deepgram TTS error: {data.get('description') or data}")

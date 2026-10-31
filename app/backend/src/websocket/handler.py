@@ -11,6 +11,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from websocket.manager import manager
 from state_machine.machine import StateMachine
 from state_machine.states import InterviewState
+from state_machine.transitions import VALID_TRANSITIONS
 from services.llm import create_llm_provider
 from services.deepgram import DeepgramTTSClient
 from services.supabase_client import (
@@ -25,24 +26,28 @@ from debrief.engine import DebriefEngine
 
 logger = logging.getLogger(__name__)
 
-INTERVIEW_RESPONSE_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "response_text": {"type": "string"},
-        "next_state": {"type": "string", "enum": [s.value for s in InterviewState]},
-    },
-    "required": ["response_text", "next_state"],
-    "additionalProperties": False,
-}
-
-# Forward step used when the LLM suggests an invalid transition.
-VALID_FALLBACK = {
-    InterviewState.INTRO: InterviewState.AWAITING_CLARIFICATION,
-    InterviewState.AWAITING_CLARIFICATION: InterviewState.AWAITING_APPROACH,
-    InterviewState.AWAITING_APPROACH: InterviewState.AWAITING_CODE,
-    InterviewState.AWAITING_CODE: InterviewState.AWAITING_WALKTHROUGH,
-    InterviewState.AWAITING_WALKTHROUGH: InterviewState.CONCLUDING,
-    InterviewState.CONCLUDING: InterviewState.GENERATING_DEBRIEF,
+PHASE_GUIDE = {
+    InterviewState.INTRO: "Greet the candidate briefly, name the problem and invite clarifying questions.",
+    InterviewState.AWAITING_CLARIFICATION: (
+        "Answer clarifying questions. Stay in AWAITING_CLARIFICATION while they have more, "
+        "and move to AWAITING_APPROACH when they are ready to discuss a solution."
+    ),
+    InterviewState.AWAITING_APPROACH: (
+        "Probe their approach without giving it away. Stay in AWAITING_APPROACH while it needs work, "
+        "and move to AWAITING_CODE once it is sound."
+    ),
+    InterviewState.AWAITING_CODE: (
+        "Let them code and only nudge if they are stuck. Stay in AWAITING_CODE until they say they "
+        "have finished, then move to AWAITING_WALKTHROUGH."
+    ),
+    InterviewState.AWAITING_WALKTHROUGH: (
+        "Have them explain the code, its complexity and its edge cases. Stay in AWAITING_WALKTHROUGH "
+        "until that is covered, then move to CONCLUDING."
+    ),
+    InterviewState.CONCLUDING: (
+        "Answer any final questions. Stay in CONCLUDING while they have some. When they have nothing "
+        "more, say a short goodbye and move to GENERATING_DEBRIEF."
+    ),
 }
 
 DEBRIEF_SCORE_KEYS = [
@@ -57,6 +62,23 @@ DEBRIEF_COLUMNS = DEBRIEF_SCORE_KEYS + [
     "real_world_scenario", "real_world_naive_approach", "real_world_why_wins",
     "senior_follow_up",
 ]
+
+
+def interview_schema(state: InterviewState) -> dict:
+    """Response schema for one turn: next_state may only be a legal move, or staying put."""
+    allowed = [
+        s.value for s in InterviewState
+        if s in VALID_TRANSITIONS[state] or (s == state and state != InterviewState.INTRO)
+    ]
+    return {
+        "type": "object",
+        "properties": {
+            "response_text": {"type": "string"},
+            "next_state": {"type": "string", "enum": allowed},
+        },
+        "required": ["response_text", "next_state"],
+        "additionalProperties": False,
+    }
 
 
 @dataclass
@@ -126,31 +148,27 @@ async def _on_transition(ctx: _InterviewContext, from_state: InterviewState, to_
 
 
 def _apply_llm_transition(sm: StateMachine, next_state_str: Optional[str], session_id: str):
-    """Apply the LLM-suggested state, falling back to the default forward step.
+    """Apply the LLM-suggested state. Staying put is normal; an illegal move also stays put,
+    because guessing a forward step would skip part of the interview.
 
     Returns (from_state, to_state, triggered_by) when the state actually changed, else None.
     """
-    if not next_state_str:
+    from_state = sm.current_state
+    if not next_state_str or next_state_str == from_state.value:
         return None
 
-    from_state = sm.current_state
     try:
         target = InterviewState(next_state_str)
     except ValueError:
         target = None
 
-    if target is not None and sm.transition(target):
-        triggered_by = "LLM_SUGGESTION"
-    else:
-        logger.warning(f"[{session_id}] Invalid state transition: {from_state} -> {next_state_str}, using fallback")
-        fallback = VALID_FALLBACK.get(from_state)
-        if fallback is None or not sm.transition(fallback):
-            return None
-        triggered_by = "BACKEND_OVERRIDE"
+    if target is None or not sm.transition(target):
+        logger.warning(f"[{session_id}] Invalid state transition: {from_state} -> {next_state_str}, staying")
+        return None
 
     if sm.current_state == from_state:
         return None
-    return from_state, sm.current_state, triggered_by
+    return from_state, sm.current_state, "LLM_SUGGESTION"
 
 
 async def _speak(ctx: _InterviewContext, text: str, state: InterviewState):
@@ -186,7 +204,7 @@ async def send_intro(ctx: _InterviewContext):
     messages = build_interview_prompt(InterviewState.INTRO, ctx.problem_context, ctx.conversation_history, "", "")
 
     try:
-        parsed = await ctx.llm.generate_structured(messages, INTERVIEW_RESPONSE_SCHEMA)
+        parsed = await ctx.llm.generate_structured(messages, interview_schema(InterviewState.INTRO))
         response_text = parsed["response_text"]
         next_state_str = parsed.get("next_state")
     except Exception as e:
@@ -227,8 +245,15 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
     await _safe(log_transcript, ctx.token, sid, "USER", text, state_before.value)
 
     messages = build_interview_prompt(state_before, ctx.problem_context, ctx.conversation_history, text, current_code)
+
+    # Recorded before the call: a failed reply must not erase what the candidate said from the debrief.
+    user_msg_content = f"Candidate: {text}"
+    if current_code:
+        user_msg_content += f"\n\n[Code Snapshot]:\n{current_code}"
+    ctx.conversation_history.append({"role": "user", "content": user_msg_content})
+
     try:
-        parsed = await ctx.llm.generate_structured(messages, INTERVIEW_RESPONSE_SCHEMA)
+        parsed = await ctx.llm.generate_structured(messages, interview_schema(state_before))
         response_text = parsed["response_text"]
         next_state_str = parsed.get("next_state")
     except Exception as e:
@@ -239,10 +264,6 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
 
     logger.info(f"[{sid}] LLM response: '{response_text[:100]}' next_state: {next_state_str}")
 
-    user_msg_content = f"Candidate: {text}"
-    if current_code:
-        user_msg_content += f"\n\n[Code Snapshot]:\n{current_code}"
-    ctx.conversation_history.append({"role": "user", "content": user_msg_content})
     ctx.conversation_history.append({"role": "assistant", "content": response_text})
 
     transition = _apply_llm_transition(ctx.sm, next_state_str, sid)
@@ -300,10 +321,11 @@ async def _run_debrief(ctx: _InterviewContext):
         )
         return
 
-    await _try_send(sid, {"type": "DEBRIEF_READY", "data": debrief_result, "session_id": sid})
+    row = _debrief_row(debrief_result)
+    await _try_send(sid, {"type": "DEBRIEF_READY", "data": {**debrief_result, **row}, "session_id": sid})
     logger.info(f"[{sid}] Sent DEBRIEF_READY")
 
-    await _safe(save_debrief, ctx.token, sid, _debrief_row(debrief_result))
+    await _safe(save_debrief, ctx.token, sid, row)
     await _safe(
         update_session, ctx.token, sid,
         status="COMPLETED", completed_at=_now_iso(), total_duration_seconds=duration,
@@ -321,7 +343,7 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str, toke
 
     # Fetch static problem context once
     try:
-        session_data = get_session(token, session_id).data
+        session_data = (await asyncio.to_thread(get_session, token, session_id)).data
         problem_context = {
             "title": session_data.get("leetcode_title"),
             "difficulty": session_data.get("problem_difficulty"),
@@ -330,8 +352,12 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str, toke
             "language": session_data.get("problem_language")
         }
     except Exception as e:
+        # Unknown session or someone else's (RLS hides it): there is no problem to interview on.
         logger.error(f"[{session_id}] Failed to fetch session context: {e}")
-        problem_context = {}
+        await _try_send(session_id, {"type": "ERROR", "code": "SESSION_UNAVAILABLE", "message": "This interview session could not be loaded."})
+        manager.disconnect(session_id)
+        await websocket.close(code=1008, reason="Session unavailable")
+        return
 
     ctx = _InterviewContext(
         session_id=session_id,
@@ -396,8 +422,10 @@ def build_interview_prompt(state: InterviewState, problem_context: dict, convers
     system_content = (
         f"You are a senior software engineer conducting a technical interview. "
         f"Current phase: {state.value}. "
-        f"Respond naturally as an interviewer. Keep your responses conversational and concise.\n"
-        f"Also return a 'next_state' field indicating where the conversation should go.\n\n"
+        f"{PHASE_GUIDE.get(state, '')}\n"
+        f"Respond naturally as an interviewer. Keep your responses conversational and concise. "
+        f"'response_text' is what you say: it is read aloud, so use plain spoken words with no markdown, "
+        f"LaTeX or code. 'next_state' is the phase the interview is in after this reply.\n\n"
         f"--- PROBLEM CONTEXT ---\n"
         f"Title: {problem_context.get('title')}\n"
         f"Difficulty: {problem_context.get('difficulty')}\n"

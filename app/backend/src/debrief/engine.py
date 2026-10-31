@@ -1,16 +1,32 @@
+import asyncio
+import logging
+
 from .prompts import DEBRIEF_SCORING_PROMPT, REAL_WORLD_PROMPT, DEBRIEF_JSON_SCHEMA
 from services.llm import create_llm_provider
-    
+
+logger = logging.getLogger(__name__)
+
 
 class DebriefEngine:
     def __init__(self):
         self.llm = create_llm_provider()
 
     async def run(self, interview_data: dict) -> dict:
-        """Run the full debrief: scoring + real-world mapping."""
-        scoring_result = await self._run_scoring(interview_data)
-        real_world = await self._run_real_world(interview_data)
-        scoring_result.update(real_world)
+        """Run the full debrief: scoring + real-world mapping.
+
+        Scores are the debrief; the real-world section is a bonus and may be left out.
+        """
+        scoring_result, real_world = await asyncio.gather(
+            self._run_scoring(interview_data),
+            self._run_real_world(interview_data),
+            return_exceptions=True,
+        )
+        if isinstance(scoring_result, BaseException):
+            raise scoring_result
+        if isinstance(real_world, BaseException):
+            logger.error(f"Real-world section failed, saving the debrief without it: {real_world}")
+        else:
+            scoring_result.update(real_world)
         return scoring_result
 
     async def _run_scoring(self, interview_data: dict) -> dict:
