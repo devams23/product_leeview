@@ -4,16 +4,23 @@ import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/ui/Button";
 import { Brand } from "../components/ui/BrandMark";
 import { InterviewOrb, useInterviewScript } from "../components/landing/InterviewOrb";
+import { ExtensionAction } from "../components/ExtensionAction";
+
+const SETUP_STEPS = [
+  { title: "Add LeeView to Chrome", body: "Install it from the Chrome Web Store." },
+  { title: "Pin it to your toolbar", body: "Click the puzzle piece beside the address bar, then the pin next to LeeView." },
+  { title: "Sign in", body: "Click the LeeView icon and sign in, so every interview saves to your account." },
+];
 
 const STEPS = [
   {
     title: "Open a problem",
-    body: "Start LeeView on any LeetCode problem. It reads the question and your language.",
+    body: "Go to any LeetCode problem and press Start interview in the LeeView panel beside it.",
     visual: <ProblemVisual />,
   },
   {
     title: "Explain your approach",
-    body: "Ask questions and reason out loud. The interviewer listens and pushes back.",
+    body: "Allow your microphone the first time, then reason out loud. The interviewer listens and pushes back.",
     visual: <VoiceVisual />,
   },
   {
@@ -176,7 +183,12 @@ function StartAction({ onStart, busy, error, className = "" }: StartActionProps)
           Sign-in did not complete: {error}
         </p>
       )}
-      <p className="text-[13px] text-text-3">Free while in beta</p>
+      <p className="text-[13px] text-text-3">
+        Free while in beta.{" "}
+        <a href="#install" className="text-text-2 underline underline-offset-4 transition-colors hover:text-text-1">
+          See how to install
+        </a>
+      </p>
     </div>
   );
 }
@@ -214,7 +226,7 @@ export function Login() {
             <Brand size={28} />
           </a>
           <nav aria-label="Page" className="hidden rounded-full border border-line-2 bg-ink-1/80 p-1 sm:flex">
-            {[["How it works", "#how"], ["Debrief", "#debrief"]].map(([label, href]) => (
+            {[["Install", "#install"], ["How it works", "#how"], ["Debrief", "#debrief"]].map(([label, href]) => (
               <a
                 key={href}
                 href={href}
@@ -287,9 +299,39 @@ export function Login() {
           </figure>
         </section>
 
+        <section id="install" className="mx-auto mt-24 max-w-[1200px] scroll-mt-24 px-5 sm:mt-32 sm:px-8">
+          <div className="grid gap-10 rounded-shell border border-line-2 bg-ink-1 p-6 sm:p-10 lg:grid-cols-[1fr_1.15fr] lg:gap-16">
+            <div className="flex flex-col items-start">
+              <h2 className="max-w-[14ch] font-display text-[32px] leading-[1.05] tracking-[-0.03em] text-text-1 sm:text-[44px]">
+                Set up once, then just practice.
+              </h2>
+              <p className="mt-4 max-w-[40ch] text-[17px] leading-relaxed text-text-2">
+                LeeView runs in Chrome, right on the LeetCode page, so there's nothing else to open.
+              </p>
+              <div className="mt-auto pt-8">
+                <ExtensionAction />
+                <p className="mt-3 text-[13px] text-text-3">For Chrome on desktop, with a microphone</p>
+              </div>
+            </div>
+            <ol className="flex flex-col">
+              {SETUP_STEPS.map((step, i) => (
+                <li key={step.title} className="flex gap-5 border-t border-line py-6 first:border-t-0 first:pt-0 last:pb-0">
+                  <span aria-hidden="true" className="font-display text-[28px] leading-none tabular-nums text-text-3">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <p className="text-[17px] font-semibold text-text-1">{step.title}</p>
+                    <p className="mt-1.5 text-[14px] leading-relaxed text-text-2">{step.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
         <section id="how" className="mx-auto mt-24 max-w-[1200px] scroll-mt-24 px-5 sm:mt-32 sm:px-8">
           <h2 className="max-w-[20ch] font-display text-[32px] leading-[1.05] tracking-[-0.03em] text-text-1 sm:text-[44px]">
-            From problem to scorecard in one sitting.
+            Every interview, from problem to scorecard.
           </h2>
           <ol className="mt-10 grid overflow-hidden rounded-shell border border-line-2 bg-ink-1 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((step, i) => (

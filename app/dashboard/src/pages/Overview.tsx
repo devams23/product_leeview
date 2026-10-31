@@ -15,6 +15,7 @@ import {
   UpNext,
   WhatWeNoticed,
 } from "../components/overview/OverviewPanels";
+import { ExtensionAction } from "../components/ExtensionAction";
 import { useExtensionInstalled } from "../hooks/useExtensionInstalled";
 
 const ONBOARDING_LINK = "https://leetcode.com/problems/two-sum/";
@@ -149,6 +150,11 @@ function Onboarding() {
                 {step.done && <span className="sr-only"> (done)</span>}
               </p>
               <p className="mt-1 text-[14px] leading-relaxed text-text-2">{step.body}</p>
+              {step.emphasis && (
+                <div className="mt-3">
+                  <ExtensionAction />
+                </div>
+              )}
             </div>
           </li>
         ))}
