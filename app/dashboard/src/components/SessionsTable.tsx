@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { buttonClass } from "./ui/Button";
 import { Card } from "./ui/Card";
+import { Pagination } from "./ui/Pagination";
 import { DifficultyChip, StatusChip } from "./ui/Chip";
 import { Select, type SelectOption } from "./ui/Select";
 import { formatDuration, formatRelative, formatScore, scoreTone, sessionDurationSeconds, toneText } from "../lib/format";
@@ -32,6 +33,8 @@ const SORT_OPTIONS: SelectOption<Sort>[] = [
   { value: "lowest", label: "Lowest score" },
   { value: "highest", label: "Highest score" },
 ];
+
+const PAGE_SIZE = 10;
 
 const whenOf = (s: InterviewSession) => activityDate(s) ?? s.started_at;
 
@@ -98,6 +101,7 @@ export function SessionsTable({ sessions }: { sessions: InterviewSession[] }) {
   const [difficulty, setDifficulty] = useState<DifficultyFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<Sort>("newest");
+  const [page, setPage] = useState(1);
 
   const difficultyOptions = DIFFICULTY_LABELS.flatMap(([value, label]) => {
     const count = value === "all" ? sessions.length : sessions.filter((s) => s.problem_difficulty === value).length;
@@ -118,26 +122,37 @@ export function SessionsTable({ sessions }: { sessions: InterviewSession[] }) {
     );
   }, [sessions, query, difficulty, status]);
 
-  const groups = useMemo<Group[]>(() => {
-    if (sort === "newest") {
-      const months: Group[] = [];
-      for (const session of filtered) {
-        const title = monthOf(whenOf(session));
-        const last = months[months.length - 1];
-        if (last?.title === title) last.sessions.push(session);
-        else months.push({ title, sessions: [session] });
-      }
-      return months;
-    }
+  const ordered = useMemo(() => {
+    if (sort === "newest") return filtered;
     // Unscored interviews have nothing to rank on, so they stay out of a score order.
     const direction = sort === "lowest" ? 1 : -1;
-    const ranked = filtered
+    return filtered
       .filter((s) => typeof s.debriefs?.overall_score === "number")
       .sort((a, b) => direction * ((a.debriefs?.overall_score ?? 0) - (b.debriefs?.overall_score ?? 0)));
-    return [{ title: null, sessions: ranked }];
   }, [filtered, sort]);
 
-  const shown = groups.reduce((n, group) => n + group.sessions.length, 0);
+  useEffect(() => setPage(1), [query, difficulty, status, sort]);
+
+  const shown = ordered.length;
+  const current = Math.min(page, Math.max(1, Math.ceil(shown / PAGE_SIZE)));
+
+  const groups = useMemo<Group[]>(() => {
+    const onPage = ordered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+    if (sort !== "newest") return [{ title: null, sessions: onPage }];
+    const months: Group[] = [];
+    for (const session of onPage) {
+      const title = monthOf(whenOf(session));
+      const last = months[months.length - 1];
+      if (last?.title === title) last.sessions.push(session);
+      else months.push({ title, sessions: [session] });
+    }
+    return months;
+  }, [ordered, current, sort]);
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    window.scrollTo({ top: 0 });
+  };
 
   if (sessions.length === 0) {
     return (
@@ -210,9 +225,13 @@ export function SessionsTable({ sessions }: { sessions: InterviewSession[] }) {
           </button>
         </Card>
       ) : (
-        groups.map((group) => {
-          const average = averageScore(group.sessions);
-          return (
+        <>
+          {groups.map((group) => {
+            // A month can run across pages, so its average comes from the whole month.
+            const average = group.title
+              ? averageScore(ordered.filter((s) => monthOf(whenOf(s)) === group.title))
+              : null;
+            return (
             <section key={group.title ?? "ranked"} aria-label={group.title ?? "Interviews by score"} className="flex flex-col gap-2">
               {group.title && (
                 <div className="flex items-baseline justify-between px-1 text-[13px]">
@@ -228,8 +247,10 @@ export function SessionsTable({ sessions }: { sessions: InterviewSession[] }) {
                 </ul>
               </Card>
             </section>
-          );
-        })
+            );
+          })}
+          <Pagination page={current} pageSize={PAGE_SIZE} total={shown} onChange={goToPage} />
+        </>
       )}
     </div>
   );
