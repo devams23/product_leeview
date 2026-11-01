@@ -7,9 +7,9 @@ type Rgb = [number, number, number];
 
 // Same colours as the extension's orb: lime is the candidate, violet the interviewer.
 const PALETTE: Record<Speaker | "thinking", [Rgb, Rgb]> = {
-  you: [[212, 255, 63], [74, 222, 128]],
-  interviewer: [[185, 166, 255], [110, 132, 255]],
-  thinking: [[161, 162, 171], [90, 92, 104]],
+  you: [[207, 242, 90], [78, 221, 180]],
+  interviewer: [[196, 181, 255], [110, 132, 255]],
+  thinking: [[194, 194, 211], [100, 102, 130]],
 };
 
 export const SCRIPT: { speaker: Speaker; text: string }[] = [

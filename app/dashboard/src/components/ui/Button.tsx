@@ -7,9 +7,9 @@ const base =
   "inline-flex items-center justify-center gap-2 rounded-btn font-medium whitespace-nowrap select-none transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none";
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-signal text-signal-ink hover:bg-[#E2FF6E]",
+  primary: "bg-signal text-signal-ink hover:bg-signal-hover",
   secondary: "bg-ink-2 text-text-1 border border-line-2 hover:bg-ink-3 hover:border-white/20",
-  ghost: "bg-ink-2 text-text-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)] hover:bg-ink-3 hover:text-text-1",
+  ghost: "bg-ink-2 text-text-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] hover:bg-ink-3 hover:text-text-1",
   danger: "bg-danger-soft text-danger border border-danger/30 hover:bg-danger/20",
 };
 

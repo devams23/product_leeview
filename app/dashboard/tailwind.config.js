@@ -1,27 +1,28 @@
 /** @type {import('tailwindcss').Config} */
-// "Studio" tokens. Values must match the extension (app/extension) exactly.
+// "Dusk" tokens: lifted indigo surfaces that lighten with elevation. Values must match the extension (app/extension) exactly.
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
       colors: {
-        ink: { 0: "#0A0B0D", 1: "#111216", 2: "#17181D", 3: "#1F2027" },
-        line: "rgba(255,255,255,0.08)",
-        "line-2": "rgba(255,255,255,0.14)",
-        "text-1": "#EDEDF0",
-        "text-2": "#A1A2AB",
-        "text-3": "#6B6C76",
-        signal: "#D4FF3F",
-        "signal-ink": "#0A0B0D",
-        "signal-soft": "rgba(212,255,63,0.12)",
-        ai: "#B9A6FF",
-        "ai-soft": "rgba(185,166,255,0.14)",
-        danger: "#FF6B5E",
-        "danger-soft": "rgba(255,107,94,0.12)",
-        warn: "#FFB547",
-        "warn-soft": "rgba(255,181,71,0.12)",
-        ok: "#4ADE80",
-        "ok-soft": "rgba(74,222,128,0.12)",
+        ink: { 0: "#1A1C2B", 1: "#222436", 2: "#2A2D42", 3: "#34374F" },
+        line: "rgba(255,255,255,0.10)",
+        "line-2": "rgba(255,255,255,0.18)",
+        "text-1": "#F3F2F7",
+        "text-2": "#C2C2D3",
+        "text-3": "#9C9DB4",
+        signal: "#CFF25A",
+        "signal-hover": "#DDF77F",
+        "signal-ink": "#14151F",
+        "signal-soft": "rgba(207,242,90,0.12)",
+        ai: "#C4B5FF",
+        "ai-soft": "rgba(196,181,255,0.14)",
+        danger: "#FF8F80",
+        "danger-soft": "rgba(255,143,128,0.12)",
+        warn: "#FFC46B",
+        "warn-soft": "rgba(255,196,107,0.12)",
+        ok: "#4EDDB4",
+        "ok-soft": "rgba(78,221,180,0.12)",
       },
       fontFamily: {
         display: ['"Bricolage Grotesque Variable"', "ui-sans-serif", "system-ui", "sans-serif"],

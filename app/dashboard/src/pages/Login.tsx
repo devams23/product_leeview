@@ -169,7 +169,7 @@ function StartAction({ onStart, busy, error, className = "" }: StartActionProps)
         type="button"
         onClick={onStart}
         disabled={busy}
-        className="group inline-flex h-[52px] items-center gap-4 rounded-[14px] bg-signal pl-6 pr-1.5 text-[15px] font-semibold text-signal-ink transition-colors hover:bg-[#E2FF6E] disabled:pointer-events-none disabled:opacity-40"
+        className="group inline-flex h-[52px] items-center gap-4 rounded-[14px] bg-signal pl-6 pr-1.5 text-[15px] font-semibold text-signal-ink transition-colors hover:bg-signal-hover disabled:pointer-events-none disabled:opacity-40"
       >
         Start a mock interview
         <span className="grid h-10 w-10 place-items-center rounded-btn bg-ink-0 text-signal transition-transform duration-200 group-hover:translate-x-0.5">
