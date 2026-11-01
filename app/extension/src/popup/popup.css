@@ -1,24 +1,24 @@
-/* LeeView popup — "Studio" tokens (spec §3). Keep values identical to overlay.css and the dashboard. */
+/* LeeView popup — "Dusk" tokens (spec §3). Keep values identical to overlay.css and the dashboard. */
 
 :root {
-  --ink-0: #0A0B0D;
-  --ink-1: #111216;
-  --ink-2: #17181D;
-  --ink-3: #1F2027;
-  --line: rgba(255, 255, 255, 0.08);
-  --line-2: rgba(255, 255, 255, 0.14);
-  --text-1: #EDEDF0;
-  --text-2: #A1A2AB;
-  --text-3: #6B6C76;
-  --signal: #D4FF3F;
-  --signal-ink: #0A0B0D;
-  --signal-soft: rgba(212, 255, 63, 0.12);
-  --ai: #B9A6FF;
-  --ai-soft: rgba(185, 166, 255, 0.14);
-  --danger: #FF6B5E;
-  --danger-soft: rgba(255, 107, 94, 0.12);
-  --warn: #FFB547;
-  --ok: #4ADE80;
+  --ink-0: #1A1C2B;
+  --ink-1: #222436;
+  --ink-2: #2A2D42;
+  --ink-3: #34374F;
+  --line: rgba(255, 255, 255, 0.10);
+  --line-2: rgba(255, 255, 255, 0.18);
+  --text-1: #F3F2F7;
+  --text-2: #C2C2D3;
+  --text-3: #9C9DB4;
+  --signal: #CFF25A;
+  --signal-ink: #14151F;
+  --signal-soft: rgba(207, 242, 90, 0.12);
+  --ai: #C4B5FF;
+  --ai-soft: rgba(196, 181, 255, 0.14);
+  --danger: #FF8F80;
+  --danger-soft: rgba(255, 143, 128, 0.12);
+  --warn: #FFC46B;
+  --ok: #4EDDB4;
 
   --radius-control: 9px;
   --radius-card: 12px;
@@ -115,7 +115,7 @@ button:focus-visible {
   font-family: var(--font-sans);
   font-size: 11px;
   line-height: 1;
-  color: #6B6C76;
+  color: var(--text-3);
 }
 
 .pop-status-dot {
@@ -150,7 +150,7 @@ button:focus-visible {
   font-size: 17px;
   line-height: 1.25;
   letter-spacing: -0.015em;
-  color: #EDEDF0;
+  color: var(--text-1);
 }
 
 .pop-email {
@@ -158,7 +158,7 @@ button:focus-visible {
   font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
-  color: #EDEDF0;
+  color: var(--text-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -190,24 +190,24 @@ button:focus-visible {
 }
 
 .pop-btn--primary {
-  background: rgba(212, 255, 63, 0.14);
-  color: #D4FF3F;
-  box-shadow: inset 0 0 0 1px rgba(212, 255, 63, 0.28);
+  background: rgba(207, 242, 90, 0.22);
+  color: var(--signal);
+  box-shadow: inset 0 0 0 1px rgba(207, 242, 90, 0.45);
 }
 
 .pop-btn--primary:hover {
-  background: rgba(212, 255, 63, 0.2);
+  background: rgba(207, 242, 90, 0.30);
 }
 
 .pop-btn--ghost {
   background: transparent;
-  color: #A1A2AB;
+  color: var(--text-2);
   font-weight: 500;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.10);
 }
 
 .pop-btn--ghost:hover {
-  color: #EDEDF0;
+  color: var(--text-1);
   background: rgba(255, 255, 255, 0.04);
 }
 
