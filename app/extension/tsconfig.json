@@ -10,9 +10,8 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "types": ["chrome"],
-    "baseUrl": ".",
     "paths": {
-      "@hooks/*": ["src/hooks/*"]
+      "@hooks/*": ["./src/hooks/*"]
     }
   },
   "include": ["src"]
