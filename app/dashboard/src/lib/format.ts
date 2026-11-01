@@ -33,12 +33,11 @@ export type SkillKey = (typeof SKILLS)[number]["key"];
 
 export type Tone = "danger" | "warn" | "signal" | "ok" | "muted";
 
-/** Score scale from the design spec: <5 danger, 5-6.9 warn, 7-8.4 signal, >=8.5 ok. */
+/** Score scale: <5 danger, 5-6.9 warn, >=7 ok. Signal stays out of it so the accent never reads as a grade. */
 export function scoreTone(score: number | null | undefined): Tone {
   if (score == null) return "muted";
   if (score < 5) return "danger";
   if (score < 7) return "warn";
-  if (score < 8.5) return "signal";
   return "ok";
 }
 
