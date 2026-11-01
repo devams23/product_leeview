@@ -8,12 +8,10 @@ export function Skeleton({ className = "" }: { className?: string }) {
 export function AppSkeleton() {
   return (
     <div role="status" aria-label="Loading" className="flex min-h-screen bg-ink-0">
-      <aside className="hidden w-60 shrink-0 flex-col gap-8 border-r border-line px-6 py-6 lg:flex">
-        <Skeleton className="h-7 w-28" />
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-9 w-full" />
-        </div>
+      <aside className="my-3 ml-3 hidden w-16 shrink-0 flex-col gap-5 rounded-shell border border-line bg-ink-1 p-3 lg:flex">
+        <Skeleton className="h-10 w-10" />
+        <Skeleton className="h-10 w-10" />
+        <Skeleton className="h-10 w-10" />
       </aside>
       <div className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
         <div className="mx-auto flex max-w-[1120px] flex-col gap-8">
