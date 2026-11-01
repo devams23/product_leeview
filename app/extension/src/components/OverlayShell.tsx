@@ -8,14 +8,13 @@ interface OverlayShellProps {
   dragging: boolean;
   onPointerDown: (e: PointerEvent<HTMLElement>) => void;
   onCollapse: () => void;
-  meta?: string;
   live?: boolean;
   children: ReactNode;
 }
 
-/** Expanded panel: draggable header (wordmark, meta, minimise) and a body that swaps per state. */
+/** Expanded panel: draggable header (wordmark, minimise) and a body that swaps per state. */
 export function OverlayShell({
-  shellRef, style, dragging, onPointerDown, onCollapse, meta, live, children,
+  shellRef, style, dragging, onPointerDown, onCollapse, live, children,
 }: OverlayShellProps) {
   return (
     <section
@@ -27,11 +26,9 @@ export function OverlayShell({
       <header className="lv-header" onPointerDown={onPointerDown}>
         <span className={live ? "lv-mark lv-mark--live" : "lv-mark"} aria-hidden="true" />
         <span className="lv-wordmark">LeeView</span>
-        {meta ? <span className="lv-header-meta">{meta}</span> : null}
         <button
           type="button"
           className="lv-icon-btn"
-          style={meta ? undefined : { marginLeft: "auto" }}
           aria-label="Minimise LeeView"
           title="Minimise"
           onClick={onCollapse}

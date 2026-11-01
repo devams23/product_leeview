@@ -78,7 +78,6 @@ export default function App() {
         dragging={position.dragging}
         onPointerDown={position.onPointerDown}
         onExpand={() => setCollapsed(false)}
-        problemTitle={problem.title}
         live={live}
         elapsedSeconds={elapsedSeconds}
       />
@@ -165,7 +164,6 @@ export default function App() {
       dragging={position.dragging}
       onPointerDown={position.onPointerDown}
       onCollapse={() => setCollapsed(true)}
-      meta={problem.title || undefined}
       live={live}
     >
       <div key={key} className="lv-body">

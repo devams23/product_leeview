@@ -1,5 +1,5 @@
 import { difficultyChipClass } from "./format";
-import { InfoIcon, MicIcon } from "./Icons";
+import { MicIcon } from "./Icons";
 
 interface ReadyCardProps {
   problemTitle: string;
@@ -12,11 +12,8 @@ export function ReadyCard({ problemTitle, difficulty, hasProblem, onStart }: Rea
   return (
     <div className="lv-stack">
       <div className="lv-stack lv-stack--tight">
-        <h2 className="lv-problem-title">{problemTitle || "Open a problem"}</h2>
-        <div className="lv-row">
-          {difficulty ? <span className={difficultyChipClass(difficulty)}>{difficulty}</span> : null}
-          <span className="lv-meta">Voice interview · about 20 min</span>
-        </div>
+        <h2 className="lv-problem-title">{problemTitle || "Open a LeetCode problem"}</h2>
+        {difficulty ? <span className={difficultyChipClass(difficulty)}>{difficulty}</span> : null}
       </div>
 
       <button
@@ -28,11 +25,6 @@ export function ReadyCard({ problemTitle, difficulty, hasProblem, onStart }: Rea
         <MicIcon />
         Start interview
       </button>
-
-      <p className="lv-hint">
-        <InfoIcon />
-        {hasProblem ? "Chrome asks for your microphone the first time." : "Open a LeetCode problem to start."}
-      </p>
     </div>
   );
 }

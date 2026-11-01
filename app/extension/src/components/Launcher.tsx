@@ -8,14 +8,13 @@ interface LauncherProps {
   dragging: boolean;
   onPointerDown: (e: PointerEvent<HTMLElement>) => void;
   onExpand: () => void;
-  problemTitle: string;
   live: boolean;
   elapsedSeconds: number;
 }
 
 /** Collapsed pill. The grip (not a button) drags it; the label button expands the panel. */
 export function Launcher({
-  shellRef, style, dragging, onPointerDown, onExpand, problemTitle, live, elapsedSeconds,
+  shellRef, style, dragging, onPointerDown, onExpand, live, elapsedSeconds,
 }: LauncherProps) {
   const clock = formatClock(elapsedSeconds);
   return (
@@ -35,11 +34,7 @@ export function Launcher({
       >
         <span className={live ? "lv-mark lv-mark--live" : "lv-mark"} aria-hidden="true" />
         <span className="lv-launcher-label">LeeView</span>
-        {live ? (
-          <span className="lv-launcher-detail lv-launcher-detail--timer">{clock}</span>
-        ) : problemTitle ? (
-          <span className="lv-launcher-detail">{problemTitle}</span>
-        ) : null}
+        {live ? <span className="lv-launcher-detail lv-launcher-detail--timer">{clock}</span> : null}
       </button>
     </section>
   );
