@@ -10,6 +10,7 @@
   ],
   "similar_problems": [],
   "summary": "You demonstrated good problem-solving but need to clarify constraints.",
+  "headline": "A solid plan, but one early habit held your score back.",
   "real_world_scenario": "Designing a high-throughput logging system",
   "real_world_naive_approach": "Writing directly to disk for every log",
   "real_world_why_wins": "Batching and async I/O reduces disk contention",

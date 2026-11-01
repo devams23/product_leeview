@@ -29,6 +29,7 @@ State transitions: {state_transitions}
 - actionable_feedback: array of 3-5 specific, constructive strings, each one a complete sentence
 - similar_problems: array of 2-3 real LeetCode problems, each given as the exact slug from its URL, for example two-sum for https://leetcode.com/problems/two-sum/
 - summary: one cohesive paragraph summarizing the interview
+- headline: one sentence of at most 14 words, addressed to the candidate as "you", that gives your verdict and hints at what decided the score without saying how to fix it
 
 Return ONLY valid JSON.
 """
@@ -69,10 +70,11 @@ DEBRIEF_JSON_SCHEMA: dict[str, Any] = {
         "actionable_feedback": {"type": "array", "items": {"type": "string"}},
         "similar_problems": {"type": "array", "items": {"type": "string"}},
         "summary": {"type": "string"},
+        "headline": {"type": "string"},
     },
     "required": [
         "approach_score", "communication_score", "code_correctness_score",
         "code_quality_score", "time_management_score", "overall_score",
-        "actionable_feedback", "similar_problems", "summary",
+        "actionable_feedback", "similar_problems", "summary", "headline",
     ],
 }
