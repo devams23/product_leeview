@@ -6,6 +6,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from postgrest.exceptions import APIError
 from pydantic import BaseModel
 
 from config import get_settings
@@ -107,6 +108,9 @@ async def create_interview_session(
         )
     except Exception as exc:
         logger.error(f"Failed to insert interview session: {exc}")
+        # A signed JWT outlives its account, so a deleted user's token still verifies until it expires.
+        if isinstance(exc, APIError) and exc.code == "23503" and "interview_sessions_user_id_fkey" in (exc.message or ""):
+            raise HTTPException(status_code=401, detail="This account no longer exists. Sign in again.")
         raise HTTPException(status_code=502, detail="Could not create interview session")
 
     if not result.data:
