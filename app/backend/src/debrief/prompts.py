@@ -27,7 +27,7 @@ State transitions: {state_transitions}
 
 --- REQUIRED OUTPUT ---
 - actionable_feedback: array of 3-5 specific, constructive strings, each one a complete sentence
-- similar_problems: array of 2-3 LeetCode problem slugs
+- similar_problems: array of 2-3 real LeetCode problems, each given as the exact slug from its URL, for example two-sum for https://leetcode.com/problems/two-sum/
 - summary: one cohesive paragraph summarizing the interview
 
 Return ONLY valid JSON.
