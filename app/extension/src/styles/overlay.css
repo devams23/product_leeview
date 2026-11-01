@@ -127,11 +127,6 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes lv-shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
 @keyframes lv-dot {
   0%, 80%, 100% { opacity: 0.2; }
   40% { opacity: 1; }
@@ -179,6 +174,10 @@
   touch-action: none;
 }
 
+.lv-header .lv-icon-btn {
+  margin-left: auto;
+}
+
 .lv-shell--dragging .lv-header,
 .lv-shell--dragging .lv-launcher {
   cursor: grabbing;
@@ -216,20 +215,6 @@
 
 .lv-mark--live::after {
   animation: lv-pulse 1.6s ease-in-out infinite;
-}
-
-.lv-mark--muted {
-  background: var(--text-3);
-}
-
-.lv-header-meta {
-  margin-left: auto;
-  min-width: 0;
-  font-size: 12px;
-  color: var(--text-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .lv-body {
@@ -414,10 +399,6 @@
   to { transform: rotate(360deg); }
 }
 
-.lv-btn--lg {
-  height: 36px;
-}
-
 .lv-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -462,34 +443,7 @@
   box-shadow: inset 0 0 0 1px rgba(255, 107, 94, 0.3);
 }
 
-.lv-kbd {
-  display: inline-block;
-  padding: 0 4px;
-  border-radius: 4px;
-  box-shadow: inset 0 0 0 1px var(--line-2);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
-  color: var(--text-3);
-}
-
 /* ---- Type & atoms ---------------------------------------------------------- */
-
-.lv-eyebrow {
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--text-3);
-}
-
-.lv-display {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 26px;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  color: var(--text-1);
-}
 
 .lv-title {
   font-family: var(--font-display);
@@ -515,13 +469,6 @@
   gap: 6px;
 }
 
-.lv-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
 .lv-center {
   display: flex;
   flex-direction: column;
@@ -545,11 +492,6 @@
 .lv-card-icon svg {
   width: 17px;
   height: 17px;
-}
-
-.lv-card-icon--ai {
-  background: var(--ai-soft);
-  color: var(--ai);
 }
 
 .lv-card-icon--danger {
@@ -586,55 +528,6 @@
   background: var(--danger-soft);
 }
 
-.lv-hint {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-2);
-}
-
-.lv-hint svg {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  margin-top: 2px;
-  color: var(--text-3);
-}
-
-.lv-divider {
-  height: 1px;
-  background: var(--line);
-}
-
-.lv-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.lv-list li {
-  display: flex;
-  gap: 10px;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--text-2);
-}
-
-.lv-list li::before {
-  content: "";
-  flex: none;
-  width: 4px;
-  height: 4px;
-  margin-top: 7px;
-  border-radius: 50%;
-  background: var(--text-3);
-}
-
 .lv-problem-title {
   font-family: var(--font-display);
   font-size: 17px;
@@ -643,24 +536,6 @@
   letter-spacing: -0.015em;
   color: var(--text-1);
   overflow-wrap: anywhere;
-}
-
-.lv-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding-top: var(--space-4);
-  margin-top: var(--space-4);
-  border-top: 1px solid var(--line);
-}
-
-.lv-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }
 
 /* ---- Live: orb, status, controls ----------------------------------------- */
@@ -741,31 +616,6 @@
 
 /* ---- Generating / connecting ------------------------------------------------ */
 
-.lv-skeleton {
-  height: 12px;
-  border-radius: 6px;
-  background: linear-gradient(90deg, var(--ink-2) 25%, var(--ink-3) 50%, var(--ink-2) 75%);
-  background-size: 200% 100%;
-  animation: lv-shimmer 1.4s linear infinite;
-}
-
-.lv-skeleton--tall {
-  height: 56px;
-  width: 120px;
-  border-radius: var(--radius-card);
-}
-
-.lv-skeleton--short {
-  width: 45%;
-}
-
-.lv-status-line {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-1);
-  min-height: 20px;
-}
-
 /* ---- Debrief --------------------------------------------------------------- */
 
 .lv-verdict {
@@ -818,11 +668,5 @@
   gap: 2px;
   width: 100%;
   margin-top: var(--space-2);
-}
-
-.lv-meta {
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--text-3);
 }
 
