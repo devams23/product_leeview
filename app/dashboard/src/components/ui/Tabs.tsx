@@ -47,7 +47,7 @@ export function Tabs<T extends string>({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(item.id)}
             onKeyDown={(e) => onKeyDown(e, index)}
-            className={`relative -mb-px h-11 whitespace-nowrap px-4 text-sm transition-colors duration-150 ${
+            className={`relative h-11 whitespace-nowrap px-4 text-sm transition-colors duration-150 ${
               active ? "text-text-1" : "text-text-2 hover:text-text-1"
             }`}
           >
