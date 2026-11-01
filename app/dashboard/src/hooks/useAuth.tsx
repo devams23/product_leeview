@@ -12,6 +12,17 @@ interface AuthValue {
 
 const AuthContext = createContext<AuthValue | null>(null);
 
+/**
+ * getSession only reads local storage, so an account deleted on the server still looks signed in here and
+ * keeps handing the extension a dead token. Ask the server, and only drop the session on a definite rejection.
+ */
+async function dropSessionIfAccountIsGone() {
+  const { error } = await supabase.auth.getUser();
+  if (error?.status && [401, 403, 404].includes(error.status)) {
+    await supabase.auth.signOut({ scope: "local" });
+  }
+}
+
 /** Tells the extension bridge (content script) that the session may have changed. Carries no tokens. */
 function pingExtension() {
   window.postMessage({ source: "leeview-dashboard", type: "AUTH_CHANGED" }, window.location.origin);
@@ -31,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.session?.user ?? null);
         setLoading(false);
         pingExtension();
+        if (data.session) void dropSessionIfAccountIsGone();
       })
       .catch(() => {
         if (active) setLoading(false);
