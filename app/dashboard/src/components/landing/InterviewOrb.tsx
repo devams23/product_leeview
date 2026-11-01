@@ -5,11 +5,11 @@ export type Phase = "thinking" | "speaking" | "listening";
 
 type Rgb = [number, number, number];
 
-// Same colours as the extension's orb: lime is the candidate, violet the interviewer.
+// Same colours as the extension's orb: orange is the candidate, violet the interviewer.
 const PALETTE: Record<Speaker | "thinking", [Rgb, Rgb]> = {
-  you: [[207, 242, 90], [78, 221, 180]],
-  interviewer: [[196, 181, 255], [110, 132, 255]],
-  thinking: [[194, 194, 211], [100, 102, 130]],
+  you: [[255, 192, 30], [255, 161, 22]],
+  interviewer: [[185, 166, 255], [122, 132, 255]],
+  thinking: [[196, 196, 196], [104, 104, 104]],
 };
 
 export const SCRIPT: { speaker: Speaker; text: string }[] = [

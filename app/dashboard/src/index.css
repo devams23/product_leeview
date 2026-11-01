@@ -15,7 +15,7 @@
   }
 
   ::selection {
-    background: rgba(207, 242, 90, 0.3);
+    background: rgba(255, 161, 22, 0.3);
     color: theme("colors.text-1");
   }
 
@@ -79,7 +79,7 @@
 .lv-rail:hover,
 .lv-rail:has(:focus-visible) {
   width: 240px;
-  box-shadow: 0 16px 48px rgba(10, 11, 20, 0.45);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
 .lv-rail-label {
@@ -123,9 +123,9 @@
 .lv-ray--ai {
   background: conic-gradient(
     transparent 0 49deg,
-    rgba(196, 181, 255, 0.3) 60deg,
+    rgba(185, 166, 255, 0.3) 60deg,
     transparent 71deg 289deg,
-    rgba(196, 181, 255, 0.3) 300deg,
+    rgba(185, 166, 255, 0.3) 300deg,
     transparent 311deg
   );
 }
@@ -133,9 +133,9 @@
 .lv-ray--signal {
   background: conic-gradient(
     transparent 0 49deg,
-    rgba(207, 242, 90, 0.22) 60deg,
+    rgba(255, 161, 22, 0.22) 60deg,
     transparent 71deg 289deg,
-    rgba(207, 242, 90, 0.22) 300deg,
+    rgba(255, 161, 22, 0.22) 300deg,
     transparent 311deg
   );
 }

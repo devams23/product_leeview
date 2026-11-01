@@ -2,7 +2,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { formatDate } from "../../lib/format";
 import type { TrendPoint } from "../../lib/stats";
 
-const AXIS_TICK = { fill: "#C2C2D3", fontSize: 11, fontFamily: "JetBrains Mono, ui-monospace, monospace" };
+const AXIS_TICK = { fill: "#C4C4C4", fontSize: 11, fontFamily: "JetBrains Mono, ui-monospace, monospace" };
 
 interface TooltipProps {
   active?: boolean;
@@ -31,8 +31,8 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
         <AreaChart data={data} margin={{ top: 12, right: 24, bottom: 0, left: 0 }}>
           <defs>
             <linearGradient id="lv-trend-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#CFF25A" stopOpacity={0.22} />
-              <stop offset="100%" stopColor="#CFF25A" stopOpacity={0} />
+              <stop offset="0%" stopColor="#FFA116" stopOpacity={0.22} />
+              <stop offset="100%" stopColor="#FFA116" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.10)" />
@@ -49,11 +49,11 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
           <Area
             type="monotone"
             dataKey="score"
-            stroke="#CFF25A"
+            stroke="#FFA116"
             strokeWidth={2}
             fill="url(#lv-trend-fill)"
-            dot={{ r: 3, fill: "#222436", stroke: "#CFF25A", strokeWidth: 1.5 }}
-            activeDot={{ r: 5, fill: "#CFF25A", stroke: "#222436", strokeWidth: 2 }}
+            dot={{ r: 3, fill: "#282828", stroke: "#FFA116", strokeWidth: 1.5 }}
+            activeDot={{ r: 5, fill: "#FFA116", stroke: "#282828", strokeWidth: 2 }}
             isAnimationActive={false}
           />
         </AreaChart>
