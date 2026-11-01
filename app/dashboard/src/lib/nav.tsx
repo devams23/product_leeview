@@ -22,6 +22,7 @@ const svg = (d: ReactNode) => (
 
 const icons = {
   overview: svg(<><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></>),
+  analytics: svg(<><path d="M5 20v-7" /><path d="M12 20V5" /><path d="M19 20v-10" /></>),
   history: svg(<><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>),
   profile: svg(<><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></>),
 };
@@ -32,6 +33,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Practice",
     items: [
       { to: "/dashboard", label: "Overview", icon: icons.overview },
+      { to: "/analytics", label: "Analytics", icon: icons.analytics },
       { to: "/history", label: "History", icon: icons.history },
     ],
   },

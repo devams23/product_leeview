@@ -8,13 +8,7 @@ import { Card } from "../components/ui/Card";
 import { ErrorBanner } from "../components/ui/ErrorBanner";
 import { OverviewSkeleton } from "../components/ui/Skeleton";
 import { buttonClass } from "../components/ui/Button";
-import {
-  Progress,
-  RecentInterviews,
-  ThisWeek,
-  UpNext,
-  WhatWeNoticed,
-} from "../components/overview/OverviewPanels";
+import { RecentInterviews, ThisWeek, UpNext } from "../components/overview/OverviewPanels";
 import { ExtensionAction } from "../components/ExtensionAction";
 import { useExtensionInstalled } from "../hooks/useExtensionInstalled";
 
@@ -72,8 +66,6 @@ export function Overview() {
             <UpNext next={insights.next} reminder={insights.reminder} />
             <ThisWeek rhythm={rhythm} />
           </div>
-          <Progress insights={insights} trend={summary.trend} />
-          <WhatWeNoticed noticed={insights.noticed} remaining={insights.noticedRemaining} />
           <RecentInterviews sessions={interviews} />
         </>
       )}

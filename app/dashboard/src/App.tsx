@@ -8,6 +8,7 @@ import { History } from "./pages/History";
 import { SessionDetail } from "./pages/SessionDetail";
 import { NotFound } from "./pages/NotFound";
 import { Profile } from "./pages/Profile";
+import { Analytics } from "./pages/Analytics";
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -19,6 +20,7 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
       <Route element={user ? <AppShell /> : <Navigate to="/login" replace />}>
         <Route path="/dashboard" element={<Overview />} />
+        <Route path="/analytics" element={<Analytics />} />
         <Route path="/history" element={<History />} />
         <Route path="/session/:sessionId" element={<SessionDetail />} />
         <Route path="/profile" element={<Profile />} />

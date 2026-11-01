@@ -46,6 +46,14 @@ export function OverviewSkeleton() {
           <Skeleton className="mt-auto h-24 w-full" />
         </Card>
       </div>
+    </div>
+  );
+}
+
+export function AnalyticsSkeleton() {
+  return (
+    <div role="status" aria-label="Loading your analytics" className="flex flex-col gap-6">
+      <Skeleton className="h-24 w-full" />
       <Card className="rounded-shell p-6 sm:p-7">
         <Skeleton className="mb-6 h-6 w-56" />
         <Skeleton className="h-[220px] w-full" />
