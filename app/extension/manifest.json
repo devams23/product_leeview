@@ -22,6 +22,11 @@
       "js": ["content.js"]
     },
     {
+      "matches": ["*://leetcode.com/problems/*"],
+      "js": ["editorBridge.js"],
+      "world": "MAIN"
+    },
+    {
       "matches": ["http://localhost:5173/*"],
       "js": ["authBridge.js"]
     }

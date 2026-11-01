@@ -1,10 +1,43 @@
-async function getCodeFromIndexedDB(language: string): Promise<string> {
+import {
+  EDITOR_BRIDGE_SOURCE,
+  orderVisibleLines,
+  pickSavedCode,
+  questionIdFromTitle,
+  type EditorSnapshot,
+} from "./editorCode";
+
+const EDITOR_TIMEOUT_MS = 300;
+
+/** Asks editorBridge, which runs in the page, for what's in the editor right now. */
+function readLiveEditor(): Promise<EditorSnapshot | null> {
+  return new Promise((resolve) => {
+    const id = crypto.randomUUID();
+    const finish = (snapshot: EditorSnapshot | null) => {
+      window.removeEventListener("message", onMessage);
+      window.clearTimeout(timer);
+      resolve(snapshot);
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.data?.source !== EDITOR_BRIDGE_SOURCE) return;
+      if (event.data.type === "CODE" && event.data.id === id) finish(event.data.snapshot);
+    };
+    const timer = window.setTimeout(() => finish(null), EDITOR_TIMEOUT_MS);
+    window.addEventListener("message", onMessage);
+    window.postMessage({ source: EDITOR_BRIDGE_SOURCE, type: "READ", id }, window.location.origin);
+  });
+}
+
+async function getSavedCode(slug: string, language: string): Promise<string> {
+  const heading = document.querySelector(`a[href^="/problems/${slug}"]`)?.textContent ?? document.title;
+  const questionId = questionIdFromTitle(heading);
+  if (!questionId) return "";
+
   return new Promise((resolve) => {
     try {
       const request = indexedDB.open('LeetCode-problems');
       request.onerror = () => resolve("");
-      request.onsuccess = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
+      request.onsuccess = () => {
+        const db = request.result;
         if (!db.objectStoreNames.contains('problem_code')) {
           resolve("");
           return;
@@ -13,61 +46,37 @@ async function getCodeFromIndexedDB(language: string): Promise<string> {
         try {
           const transaction = db.transaction(['problem_code'], 'readonly');
           const store = transaction.objectStore('problem_code');
-
           const getAllKeysReq = store.getAllKeys();
           const getAllReq = store.getAll();
 
-          getAllKeysReq.onsuccess = () => {
-            getAllReq.onsuccess = () => {
-              const keys = getAllKeysReq.result as string[];
-              const values = getAllReq.result as string[];
-
-              let latestTime = 0;
-              let latestCodeKey = "";
-
-              for (let i = 0; i < keys.length; i++) {
-                const key = keys[i];
-                if (key.endsWith('-updated-time') && key.includes(`_${language}`)) {
-                  const time = parseInt(values[i], 10);
-                  if (time > latestTime) {
-                    latestTime = time;
-                    latestCodeKey = key.replace('-updated-time', '');
-                  }
-                }
-              }
-
-              if (latestCodeKey) {
-                const codeIndex = keys.indexOf(latestCodeKey);
-                if (codeIndex !== -1) {
-                  resolve(values[codeIndex]);
-                  return;
-                }
-              }
-              resolve("");
-            };
+          getAllReq.onsuccess = () => {
+            resolve(pickSavedCode(getAllKeysReq.result.map(String), getAllReq.result, questionId, language));
           };
-
           transaction.onerror = () => resolve("");
-        } catch (e) {
+        } catch {
           resolve("");
         }
       };
-    } catch (e) {
+    } catch {
       resolve("");
     }
   });
 }
 
-function getCodeFromDOM(): string {
-  try {
-    const cmContent = document.querySelector('.cm-content');
-    if (!cmContent) return "";
+function getVisibleCode(): string {
+  const editors = Array.from(document.querySelectorAll('.monaco-editor .view-lines'));
+  const largest = editors.reduce<Element | null>(
+    (best, editor) => (!best || editor.childElementCount > best.childElementCount ? editor : best),
+    null,
+  );
+  if (!largest) return "";
 
-    const lines = Array.from(cmContent.querySelectorAll('.cm-line'));
-    return lines.map(line => line.textContent || "").join('\n');
-  } catch (e) {
-    return "";
-  }
+  return orderVisibleLines(
+    Array.from(largest.children).map((line) => ({
+      top: parseFloat((line as HTMLElement).style.top) || 0,
+      text: line.textContent ?? "",
+    })),
+  );
 }
 
 /** Slug from a LeetCode problem path, or null when not on a problem page. */
@@ -140,10 +149,8 @@ export async function getProblemData(): Promise<{
   // Remove JSON string quotes if present
   language = language.replace(/^"|"$/g, '');
 
-  let code = await getCodeFromIndexedDB(language);
-  if (!code) {
-    code = getCodeFromDOM();
-  }
+  const live = await readLiveEditor();
+  const code = live ? live.code : (await getSavedCode(slug, language)) || getVisibleCode();
 
   return { title, slug, description, difficulty, code, language, topics };
 }
