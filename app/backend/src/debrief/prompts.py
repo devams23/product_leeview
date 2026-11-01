@@ -26,7 +26,7 @@ State transitions: {state_transitions}
 - overall_score: A holistic evaluation based on the above (not strictly an average).
 
 --- REQUIRED OUTPUT ---
-- actionable_feedback: array of 3-5 specific, constructive strings
+- actionable_feedback: array of 3-5 specific, constructive strings, each one a complete sentence
 - similar_problems: array of 2-3 LeetCode problem slugs
 - summary: one cohesive paragraph summarizing the interview
 

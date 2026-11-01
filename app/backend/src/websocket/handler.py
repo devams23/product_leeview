@@ -273,6 +273,13 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
     await _speak(ctx, response_text, ctx.sm.current_state)
 
 
+def _clean_feedback(items) -> list:
+    """The model occasionally emits an entry that is only punctuation, such as ":"."""
+    if not isinstance(items, list):
+        return []
+    return [item.strip() for item in items if isinstance(item, str) and any(c.isalnum() for c in item)]
+
+
 def _debrief_row(debrief: dict) -> dict:
     row = {}
     for key in DEBRIEF_COLUMNS:
@@ -284,6 +291,8 @@ def _debrief_row(debrief: dict) -> dict:
                 value = max(1, min(10, int(round(float(value)))))
             except (TypeError, ValueError):
                 continue
+        elif key == "actionable_feedback":
+            value = _clean_feedback(value)
         row[key] = value
     return row
 
