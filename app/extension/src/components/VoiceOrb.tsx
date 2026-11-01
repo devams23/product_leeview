@@ -4,12 +4,12 @@ export type OrbMode = "listening" | "muted" | "ai" | "thinking";
 
 type Rgb = [number, number, number];
 
-// Inner and outer colour per mode: lime is the candidate, violet the interviewer.
+// Inner and outer colour per mode: orange is the candidate, violet the interviewer.
 const PALETTE: Record<OrbMode, [Rgb, Rgb]> = {
-  listening: [[207, 242, 90], [78, 221, 180]],
-  ai: [[196, 181, 255], [110, 132, 255]],
-  thinking: [[194, 194, 211], [100, 102, 130]],
-  muted: [[156, 157, 180], [68, 71, 98]],
+  listening: [[255, 192, 30], [255, 161, 22]],
+  ai: [[185, 166, 255], [122, 132, 255]],
+  thinking: [[196, 196, 196], [104, 104, 104]],
+  muted: [[154, 154, 154], [70, 70, 70]],
 };
 
 const SIZE = 132;

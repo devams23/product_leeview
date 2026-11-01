@@ -1,32 +1,30 @@
-/* LeeView overlay — "Dusk" design tokens (spec §3). Keep values identical to the dashboard. */
+/* LeeView overlay — "Layer" design tokens (spec §3). Keep values identical to the dashboard. */
 
 :host {
-  --ink-0: #1A1C2B;
-  --ink-1: #222436;
-  --ink-2: #2A2D42;
-  --ink-3: #34374F;
+  --ink-0: #1A1A1A;
+  --ink-1: #282828;
+  --ink-2: #323232;
+  --ink-3: #3E3E3E;
   --line: rgba(255, 255, 255, 0.10);
-  --line-2: rgba(255, 255, 255, 0.18);
-  --text-1: #F3F2F7;
-  --text-2: #C2C2D3;
-  --text-3: #9C9DB4;
-  --signal: #CFF25A;
-  --signal-ink: #14151F;
-  --signal-soft: rgba(207, 242, 90, 0.12);
-  /* Overlay sits on a bright editor for long stretches: actions use a tint, never a solid neon fill. */
-  --signal-tint: rgba(207, 242, 90, 0.22);
-  --signal-tint-hover: rgba(207, 242, 90, 0.30);
-  --signal-ring: rgba(207, 242, 90, 0.45);
-  --ai: #C4B5FF;
-  --ai-soft: rgba(196, 181, 255, 0.14);
-  --danger: #FF8F80;
-  --danger-soft: rgba(255, 143, 128, 0.12);
-  --warn: #FFC46B;
-  --ok: #4EDDB4;
+  --line-2: rgba(255, 255, 255, 0.16);
+  --text-1: #F7F7F7;
+  --text-2: #C4C4C4;
+  --text-3: #9A9A9A;
+  --signal: #FFA116;
+  --signal-ink: #1A1A1A;
+  --signal-soft: rgba(255, 161, 22, 0.12);
+  --signal-hover: #FFB547;
+  --signal-ring: rgba(255, 161, 22, 0.45);
+  --ai: #B9A6FF;
+  --ai-soft: rgba(185, 166, 255, 0.14);
+  --danger: #FF6B6B;
+  --danger-soft: rgba(255, 107, 107, 0.12);
+  --warn: #FFC01E;
+  --ok: #1CC8B4;
 
-  --diff-easy: #4EDDB4;
-  --diff-medium: #FFC46B;
-  --diff-hard: #FF8F80;
+  --diff-easy: #1CC8B4;
+  --diff-medium: #FFC01E;
+  --diff-hard: #FF6B6B;
 
   --radius-chip: 6px;
   --radius-control: 10px;
@@ -317,13 +315,12 @@
 }
 
 .lv-btn--primary {
-  background: var(--signal-tint);
-  color: var(--signal);
-  box-shadow: inset 0 0 0 1px var(--signal-ring);
+  background: var(--signal);
+  color: var(--signal-ink);
 }
 
 .lv-btn--primary:hover:not(:disabled) {
-  background: var(--signal-tint-hover);
+  background: var(--signal-hover);
 }
 
 .lv-btn--ghost {
@@ -364,7 +361,7 @@
 .lv-btn--danger {
   background: transparent;
   color: var(--danger);
-  box-shadow: inset 0 0 0 1px rgba(255, 143, 128, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.3);
 }
 
 .lv-btn--danger:hover:not(:disabled) {
@@ -372,13 +369,13 @@
 }
 
 .lv-btn--confirm {
-  background: rgba(255, 143, 128, 0.18);
-  color: #FFB0A5;
-  box-shadow: inset 0 0 0 1px rgba(255, 143, 128, 0.45);
+  background: rgba(255, 107, 107, 0.18);
+  color: #FF9C9C;
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.45);
 }
 
 .lv-btn--confirm:hover:not(:disabled) {
-  background: rgba(255, 143, 128, 0.26);
+  background: rgba(255, 107, 107, 0.26);
 }
 
 .lv-btn--block {
@@ -440,7 +437,7 @@
 .lv-controls .lv-icon-btn--mute[aria-pressed="true"] {
   background: var(--danger-soft);
   color: var(--danger);
-  box-shadow: inset 0 0 0 1px rgba(255, 143, 128, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.3);
 }
 
 /* ---- Type & atoms ---------------------------------------------------------- */
@@ -519,12 +516,12 @@
 
 .lv-chip--easy {
   color: var(--diff-easy);
-  background: rgba(78, 221, 180, 0.12);
+  background: rgba(28, 200, 180, 0.12);
 }
 
 .lv-chip--medium {
   color: var(--diff-medium);
-  background: rgba(255, 196, 107, 0.12);
+  background: rgba(255, 192, 30, 0.12);
 }
 
 .lv-chip--hard {
