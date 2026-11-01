@@ -100,13 +100,8 @@ function SignedOut({ expired }: { expired: boolean }) {
   return (
     <section className="pop-card">
       <h1 className="pop-display">
-        {expired ? "Your session expired." : "Practice the interview, not just the problem."}
+        {expired ? "Your session expired" : "Sign in to start practicing"}
       </h1>
-      <p className="pop-muted">
-        {expired
-          ? "Reconnect in one click to keep practicing."
-          : "Talk through any LeetCode problem with an AI interviewer, then get a scored debrief."}
-      </p>
       <button
         type="button"
         className="pop-btn pop-btn--primary"
@@ -114,7 +109,6 @@ function SignedOut({ expired }: { expired: boolean }) {
       >
         Sign in
       </button>
-      <p className="pop-hint">Open any LeetCode problem to start.</p>
     </section>
   );
 }
@@ -122,9 +116,7 @@ function SignedOut({ expired }: { expired: boolean }) {
 function SignedIn({ email, onSignOut }: { email: string | null; onSignOut: () => void }) {
   return (
     <section className="pop-card">
-      <span className="pop-eyebrow">Signed in as</span>
       <p className="pop-email">{email ?? "Signed in"}</p>
-      <p className="pop-hint">Open a LeetCode problem to start an interview.</p>
       <div className="pop-actions">
         <button type="button" className="pop-btn pop-btn--primary" onClick={() => openDashboardPath("/dashboard")}>
           Open dashboard
@@ -136,12 +128,6 @@ function SignedIn({ email, onSignOut }: { email: string | null; onSignOut: () =>
     </section>
   );
 }
-
-const HEALTH_LABEL: Record<Health, string> = {
-  checking: "Checking",
-  online: "Online",
-  offline: "Offline",
-};
 
 function Popup() {
   const [auth] = useStoredAuth();
@@ -162,10 +148,12 @@ function Popup() {
           <span className="pop-mark" aria-hidden="true" />
           <span className="pop-wordmark">LeeView</span>
         </div>
-        <span className={`pop-status pop-status--${health}`} role="status">
-          <span className="pop-status-dot" aria-hidden="true" />
-          {HEALTH_LABEL[health]}
-        </span>
+        {health === "offline" ? (
+          <span className="pop-status" role="status">
+            <span className="pop-status-dot" aria-hidden="true" />
+            Offline
+          </span>
+        ) : null}
       </header>
 
       {auth.status === "loading" ? null : auth.status === "signed_in" ? (
