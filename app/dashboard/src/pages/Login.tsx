@@ -51,7 +51,7 @@ function ProblemVisual() {
   return (
     <div className="w-full max-w-[210px] rounded-card border border-line-2 bg-ink-2 p-4">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[14px] font-semibold text-text-1">Two Sum</span>
+        <span className="text-[14px] font-medium text-text-1">Two Sum</span>
         <span className="rounded-chip bg-ok/15 px-2 py-0.5 text-[11px] text-ok">Easy</span>
       </div>
       <span className="mt-3 block h-1.5 w-full rounded-full bg-ink-3" />
@@ -169,7 +169,7 @@ function StartAction({ onStart, busy, error, className = "" }: StartActionProps)
         type="button"
         onClick={onStart}
         disabled={busy}
-        className="group inline-flex h-[52px] items-center gap-4 rounded-[14px] bg-signal pl-6 pr-1.5 text-[15px] font-semibold text-signal-ink transition-colors hover:bg-signal-hover disabled:pointer-events-none disabled:opacity-40"
+        className="group inline-flex h-[52px] items-center gap-4 rounded-[14px] bg-signal pl-6 pr-1.5 text-[15px] font-medium text-signal-ink transition-colors hover:bg-signal-hover disabled:pointer-events-none disabled:opacity-40"
       >
         Start a mock interview
         <span className="grid h-10 w-10 place-items-center rounded-btn bg-ink-0 text-signal transition-transform duration-200 group-hover:translate-x-0.5">
@@ -254,7 +254,7 @@ export function Login() {
                 Sign in to connect the LeeView extension.
               </p>
             )}
-            <h1 className="font-display text-balance text-[46px] leading-[1] tracking-[-0.02em] text-text-1 [font-variation-settings:'opsz'_96] sm:text-[72px] lg:text-[84px]">
+            <h1 className="font-display text-balance text-[46px] leading-[1] tracking-[-0.02em] text-text-1 sm:text-[72px] lg:text-[84px]">
               Practice the interview, not just the problem.
             </h1>
             <p className="max-w-[52ch] text-pretty text-[17px] leading-relaxed text-text-2 sm:text-[18px]">
@@ -320,7 +320,7 @@ export function Login() {
                     {i + 1}
                   </span>
                   <div>
-                    <p className="text-[17px] font-semibold text-text-1">{step.title}</p>
+                    <p className="text-[17px] font-medium text-text-1">{step.title}</p>
                     <p className="mt-1.5 text-[14px] leading-relaxed text-text-2">{step.body}</p>
                   </div>
                 </li>
@@ -341,7 +341,7 @@ export function Login() {
               >
                 <span className="text-[13px] tabular-nums text-text-3">{String(i + 1).padStart(2, "0")}</span>
                 <div className="grid h-[176px] place-items-center">{step.visual}</div>
-                <p className="text-[17px] font-semibold text-text-1">{step.title}</p>
+                <p className="text-[17px] font-medium text-text-1">{step.title}</p>
                 <p className="mt-2 text-[14px] leading-relaxed text-text-2">{step.body}</p>
               </li>
             ))}
@@ -371,7 +371,7 @@ export function Login() {
       <footer className="mt-28 border-t border-line sm:mt-40">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
           <div className="grid gap-10 pb-20 pt-20 sm:pb-28 sm:pt-28 lg:grid-cols-[1fr_auto] lg:items-end lg:gap-16">
-            <h2 className="max-w-[13ch] text-balance font-display text-[52px] leading-[1] tracking-[-0.02em] text-text-1 [font-variation-settings:'opsz'_96] sm:text-[84px] lg:text-[104px]">
+            <h2 className="max-w-[13ch] text-balance font-display text-[52px] leading-[1] tracking-[-0.02em] text-text-1 sm:text-[84px] lg:text-[104px]">
               Say it out loud before it counts.
             </h2>
             <StartAction

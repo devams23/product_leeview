@@ -25,8 +25,8 @@ export default {
         "ok-soft": "rgba(28,200,180,0.12)",
       },
       fontFamily: {
-        display: ['"Bricolage Grotesque Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
-        sans: ['"Instrument Sans Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ['"Hanken Grotesk Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ['"Hanken Grotesk Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ['"JetBrains Mono"', "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       borderRadius: {
