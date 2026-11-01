@@ -1,17 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { buttonClass } from "./ui/Button";
 import { Card } from "./ui/Card";
 import { Pagination } from "./ui/Pagination";
 import { DifficultyChip, StatusChip } from "./ui/Chip";
 import { Select, type SelectOption } from "./ui/Select";
-import { formatDuration, formatRelative, formatScore, scoreTone, sessionDurationSeconds, toneText } from "../lib/format";
-import { activityDate } from "../lib/stats";
-import type { InterviewSession, SessionStatus } from "../types";
-
-type DifficultyFilter = "all" | "Easy" | "Medium" | "Hard";
-type StatusFilter = "all" | SessionStatus;
-type Sort = "newest" | "lowest" | "highest";
+import {
+  HISTORY_PAGE_SIZE,
+  type DifficultyFilter,
+  type HistorySort,
+  type HistoryView,
+  type StatusFilter,
+} from "../hooks/useHistoryPage";
+import { formatDuration, formatRelative, formatScore, scoreTone, toneText } from "../lib/format";
+import type { HistoryPage, HistoryRow } from "../types";
 
 const DIFFICULTY_LABELS: [DifficultyFilter, string][] = [
   ["all", "All difficulties"],
@@ -28,38 +30,30 @@ const STATUS_LABELS: [StatusFilter, string][] = [
   ["PREPARING", "Not started"],
 ];
 
-const SORT_OPTIONS: SelectOption<Sort>[] = [
+const SORT_OPTIONS: SelectOption<HistorySort>[] = [
   { value: "newest", label: "Newest first" },
   { value: "lowest", label: "Lowest score" },
   { value: "highest", label: "Highest score" },
 ];
 
-const PAGE_SIZE = 10;
-
-const whenOf = (s: InterviewSession) => activityDate(s) ?? s.started_at;
-
 function firstSentence(text: string): string {
   return text.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? text;
 }
 
-function monthOf(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+function monthTitle(key: string): string {
+  const [year, month] = key.split("-").map(Number);
+  return new Date(year, month - 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
 interface Group {
-  title: string | null;
-  sessions: InterviewSession[];
+  key: string | null;
+  sessions: HistoryRow[];
 }
 
-function averageScore(sessions: InterviewSession[]): number | null {
-  const scores = sessions.flatMap((s) => (typeof s.debriefs?.overall_score === "number" ? [s.debriefs.overall_score] : []));
-  return scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null;
-}
-
-function SessionRow({ session }: { session: InterviewSession }) {
-  const score = session.debriefs?.overall_score;
-  const duration = formatDuration(sessionDurationSeconds(session));
-  const summary = session.debriefs?.summary;
+function SessionRow({ session }: { session: HistoryRow }) {
+  const score = session.overall_score;
+  const duration = formatDuration(session.duration_seconds);
+  const when = formatRelative(session.activity_at);
 
   return (
     <li>
@@ -76,10 +70,10 @@ function SessionRow({ session }: { session: InterviewSession }) {
         <div className="min-w-0">
           <p className="truncate text-[15px] font-medium text-text-1">{session.leetcode_title}</p>
           <p className="mt-0.5 truncate text-[13px] text-text-2">
-            {summary ? firstSentence(summary) : "No debrief for this interview."}
+            {session.summary ? firstSentence(session.summary) : "No debrief for this interview."}
           </p>
           <p className="mt-1 text-[13px] text-text-3 md:hidden">
-            {formatRelative(whenOf(session))}
+            {when}
             {duration ? `, ${duration}` : ""}
           </p>
         </div>
@@ -88,7 +82,7 @@ function SessionRow({ session }: { session: InterviewSession }) {
           <DifficultyChip value={session.problem_difficulty} />
         </div>
         <div className="hidden text-right md:block">
-          <p className="text-[13px] text-text-2">{formatRelative(whenOf(session))}</p>
+          <p className="text-[13px] text-text-2">{when}</p>
           {duration && <p className="mt-0.5 text-[13px] text-text-3">{duration}</p>}
         </div>
       </Link>
@@ -96,65 +90,35 @@ function SessionRow({ session }: { session: InterviewSession }) {
   );
 }
 
-export function SessionsTable({ sessions }: { sessions: InterviewSession[] }) {
-  const [query, setQuery] = useState("");
-  const [difficulty, setDifficulty] = useState<DifficultyFilter>("all");
-  const [status, setStatus] = useState<StatusFilter>("all");
-  const [sort, setSort] = useState<Sort>("newest");
-  const [page, setPage] = useState(1);
+export function SessionsTable({ history, page }: { history: HistoryView; page: HistoryPage }) {
+  const { query, setQuery, filters, updateFilters, clearFilters, loading } = history;
 
   const difficultyOptions = DIFFICULTY_LABELS.flatMap(([value, label]) => {
-    const count = value === "all" ? sessions.length : sessions.filter((s) => s.problem_difficulty === value).length;
+    const count = value === "all" ? page.all_count : page.difficulty_counts[value] ?? 0;
     return value === "all" || count > 0 ? [{ value, label, count }] : [];
   });
   const statusOptions = STATUS_LABELS.flatMap(([value, label]) => {
-    const count = value === "all" ? sessions.length : sessions.filter((s) => s.status === value).length;
+    const count = value === "all" ? page.all_count : page.status_counts[value] ?? 0;
     return value === "all" || count > 0 ? [{ value, label, count }] : [];
   });
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return sessions.filter(
-      (s) =>
-        (!q || s.leetcode_title.toLowerCase().includes(q) || s.leetcode_slug.toLowerCase().includes(q)) &&
-        (difficulty === "all" || s.problem_difficulty === difficulty) &&
-        (status === "all" || s.status === status),
-    );
-  }, [sessions, query, difficulty, status]);
-
-  const ordered = useMemo(() => {
-    if (sort === "newest") return filtered;
-    // Unscored interviews have nothing to rank on, so they stay out of a score order.
-    const direction = sort === "lowest" ? 1 : -1;
-    return filtered
-      .filter((s) => typeof s.debriefs?.overall_score === "number")
-      .sort((a, b) => direction * ((a.debriefs?.overall_score ?? 0) - (b.debriefs?.overall_score ?? 0)));
-  }, [filtered, sort]);
-
-  useEffect(() => setPage(1), [query, difficulty, status, sort]);
-
-  const shown = ordered.length;
-  const current = Math.min(page, Math.max(1, Math.ceil(shown / PAGE_SIZE)));
-
   const groups = useMemo<Group[]>(() => {
-    const onPage = ordered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
-    if (sort !== "newest") return [{ title: null, sessions: onPage }];
+    if (filters.sort !== "newest") return [{ key: null, sessions: page.rows }];
     const months: Group[] = [];
-    for (const session of onPage) {
-      const title = monthOf(whenOf(session));
+    for (const session of page.rows) {
       const last = months[months.length - 1];
-      if (last?.title === title) last.sessions.push(session);
-      else months.push({ title, sessions: [session] });
+      if (last?.key === session.month_key) last.sessions.push(session);
+      else months.push({ key: session.month_key, sessions: [session] });
     }
     return months;
-  }, [ordered, current, sort]);
+  }, [page.rows, filters.sort]);
 
   const goToPage = (next: number) => {
-    setPage(next);
+    history.setPage(next);
     window.scrollTo({ top: 0 });
   };
 
-  if (sessions.length === 0) {
+  if (page.all_count === 0) {
     return (
       <Card className="flex flex-col items-center gap-3 px-6 py-12 text-center">
         <h3 className="font-display text-2xl text-text-1">No interviews yet</h3>
@@ -194,63 +158,64 @@ export function SessionsTable({ sessions }: { sessions: InterviewSession[] }) {
           />
         </label>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:flex">
-          <Select label="Difficulty" value={difficulty} options={difficultyOptions} neutralValue="all" onChange={setDifficulty} />
-          <Select label="Status" value={status} options={statusOptions} neutralValue="all" onChange={setStatus} />
+          <Select
+            label="Difficulty"
+            value={filters.difficulty}
+            options={difficultyOptions}
+            neutralValue="all"
+            onChange={(difficulty) => updateFilters({ difficulty })}
+          />
+          <Select
+            label="Status"
+            value={filters.status}
+            options={statusOptions}
+            neutralValue="all"
+            onChange={(status) => updateFilters({ status })}
+          />
           <Select
             label="Newest first"
-            value={sort}
+            value={filters.sort}
             options={SORT_OPTIONS}
             neutralValue="newest"
-            onChange={setSort}
+            onChange={(sort) => updateFilters({ sort })}
             align="right"
             className="col-span-2 sm:col-span-1"
           />
         </div>
       </div>
 
-      {shown === 0 ? (
+      {page.total === 0 ? (
         <Card className="flex flex-col items-center gap-3 px-6 py-10 text-center">
           <p className="text-text-2">No interviews match these filters.</p>
-          <button
-            type="button"
-            onClick={() => {
-              setQuery("");
-              setDifficulty("all");
-              setStatus("all");
-              setSort("newest");
-            }}
-            className={buttonClass("secondary", "sm")}
-          >
+          <button type="button" onClick={clearFilters} className={buttonClass("secondary", "sm")}>
             Clear filters
           </button>
         </Card>
       ) : (
-        <>
+        <div className={`flex flex-col gap-6 transition-opacity duration-150 ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
           {groups.map((group) => {
-            // A month can run across pages, so its average comes from the whole month.
-            const average = group.title
-              ? averageScore(ordered.filter((s) => monthOf(whenOf(s)) === group.title))
-              : null;
+            const average = group.key ? page.month_averages[group.key] : undefined;
+            const title = group.key ? monthTitle(group.key) : null;
             return (
-            <section key={group.title ?? "ranked"} aria-label={group.title ?? "Interviews by score"} className="flex flex-col gap-2">
-              {group.title && (
-                <div className="flex items-baseline justify-between px-1 text-[13px]">
-                  <h2 className="font-medium text-text-2">{group.title}</h2>
-                  {average !== null && <p className="text-text-3">Average {formatScore(average)}</p>}
-                </div>
-              )}
-              <Card className="overflow-hidden">
-                <ul className="flex flex-col divide-y divide-line">
-                  {group.sessions.map((session) => (
-                    <SessionRow key={session.id} session={session} />
-                  ))}
-                </ul>
-              </Card>
-            </section>
+              <section key={group.key ?? "ranked"} aria-label={title ?? "Interviews by score"} className="flex flex-col gap-2">
+                {title && (
+                  <div className="flex items-baseline justify-between px-1 text-[13px]">
+                    <h2 className="font-medium text-text-2">{title}</h2>
+                    {average !== undefined && <p className="text-text-3">Average {formatScore(average)}</p>}
+                  </div>
+                )}
+                <Card className="overflow-hidden">
+                  <ul className="flex flex-col divide-y divide-line">
+                    {group.sessions.map((session) => (
+                      <SessionRow key={session.id} session={session} />
+                    ))}
+                  </ul>
+                </Card>
+              </section>
             );
           })}
-          <Pagination page={current} pageSize={PAGE_SIZE} total={shown} onChange={goToPage} />
-        </>
+          <Pagination page={history.page} pageSize={HISTORY_PAGE_SIZE} total={page.total} onChange={goToPage} />
+        </div>
       )}
     </div>
   );

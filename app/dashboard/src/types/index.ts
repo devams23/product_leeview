@@ -55,3 +55,28 @@ export interface InterviewSession {
   transcript_logs: TranscriptLog[];
   code_snapshots: CodeSnapshot[];
 }
+
+/** One row of `history_page`, flattened for the list. */
+export interface HistoryRow {
+  id: string;
+  leetcode_slug: string;
+  leetcode_title: string;
+  problem_difficulty: string | null;
+  status: SessionStatus;
+  activity_at: string;
+  duration_seconds: number | null;
+  overall_score: number | null;
+  summary: string | null;
+  month_key: string;
+}
+
+export interface HistoryPage {
+  rows: HistoryRow[];
+  total: number;
+  month_averages: Record<string, number>;
+  all_count: number;
+  difficulty_counts: Record<string, number>;
+  status_counts: Record<string, number>;
+  practice_count: number;
+  practice_seconds: number;
+}
