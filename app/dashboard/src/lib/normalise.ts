@@ -13,6 +13,13 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
+/** Debriefs saved before the backend cleaned feedback can hold entries that are only punctuation, such as ":". */
+function asFeedback(value: unknown): string[] {
+  return asStringArray(value)
+    .map((item) => item.trim())
+    .filter((item) => /[\p{L}\p{N}]/u.test(item));
+}
+
 function asScore(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
@@ -30,7 +37,7 @@ export function normaliseDebrief(raw: MaybeMany<Debrief>): Debrief | null {
     time_management_score: asScore(d.time_management_score),
     overall_score: asScore(d.overall_score),
     summary: d.summary || null,
-    actionable_feedback: asStringArray(d.actionable_feedback),
+    actionable_feedback: asFeedback(d.actionable_feedback),
     similar_problems: asStringArray(d.similar_problems),
     real_world_scenario: d.real_world_scenario || null,
     real_world_naive_approach: d.real_world_naive_approach || null,
