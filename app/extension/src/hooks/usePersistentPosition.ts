@@ -49,7 +49,7 @@ export function usePersistentPosition(defaultWidth = 320): {
     let alive = true;
     try {
       chrome.storage.local.get(POSITION_KEY, (res) => {
-        const saved = res?.[POSITION_KEY];
+        const saved = res?.[POSITION_KEY] as Partial<Point> | undefined;
         if (alive && saved && typeof saved.x === "number" && typeof saved.y === "number") {
           setPos(clampPoint({ x: saved.x, y: saved.y }, defaultWidth));
         }
