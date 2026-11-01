@@ -109,14 +109,16 @@ export function SessionDetail() {
         <NoDebriefNotice status={session.status} />
       )}
 
-      <section aria-label="Interview record" className="flex flex-col gap-6">
+      <section aria-label="Interview record" className="flex flex-col gap-4">
         <Tabs items={TABS} value={tab} onChange={setTab} label="Interview record" />
+        {/* Scrolls on its own so a long transcript never drags the page. Keyed so each tab starts at the top. */}
         <div
+          key={tab}
           role="tabpanel"
           id={`panel-${tab}`}
           aria-labelledby={`tab-${tab}`}
           tabIndex={0}
-          className="min-h-[200px] pt-2"
+          className="max-h-[min(640px,72vh)] min-h-[200px] overflow-y-auto rounded-card border border-line p-4 sm:p-5"
         >
           {tab === "transcript" && <TranscriptView logs={session.transcript_logs} />}
           {tab === "code" && <CodeView snapshots={session.code_snapshots} />}
