@@ -191,7 +191,7 @@ button:focus-visible {
 
 .pop-btn--primary {
   background: var(--signal);
-  color: var(--signal);
+  color: var(--signal-ink);
 }
 
 .pop-btn--primary:hover {
