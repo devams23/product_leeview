@@ -469,6 +469,10 @@
   gap: 6px;
 }
 
+.lv-stack > .lv-chip {
+  align-self: flex-start;
+}
+
 .lv-center {
   display: flex;
   flex-direction: column;

@@ -54,7 +54,7 @@ export function DebriefCard({ debrief, sessionId, onViewFull, onPractice }: Debr
         <span className={overall === null ? "lv-score-big lv-score-big--empty" : "lv-score-big"} aria-hidden="true">
           {formatScore(shown)}
         </span>
-        <span className="lv-score-denom" aria-hidden="true">/10</span>
+        {overall === null ? null : <span className="lv-score-denom" aria-hidden="true">/10</span>}
       </p>
 
       {line ? <p className="lv-verdict-line">{line}</p> : null}
