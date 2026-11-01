@@ -10,7 +10,7 @@ export interface Caption { speaker: "AI" | "USER"; text: string; final: boolean 
 export interface Debrief {
   approach_score?: number; communication_score?: number; code_correctness_score?: number;
   code_quality_score?: number; time_management_score?: number; overall_score?: number;
-  summary?: string; actionable_feedback?: string[]; similar_problems?: string[];
+  summary?: string; headline?: string; actionable_feedback?: string[]; similar_problems?: string[];
   real_world_scenario?: string; real_world_naive_approach?: string;
   real_world_why_wins?: string; senior_follow_up?: string;
 }

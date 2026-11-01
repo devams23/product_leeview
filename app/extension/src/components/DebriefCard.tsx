@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import type { Debrief } from "../types";
 import { ExternalIcon } from "./Icons";
 import { formatScore } from "./format";
+
+const COUNT_MS = 900;
 
 interface DebriefCardProps {
   debrief: Debrief | null;
@@ -9,69 +12,54 @@ interface DebriefCardProps {
   onPractice: () => void;
 }
 
-const SKILLS: ReadonlyArray<{ label: string; key: keyof Debrief }> = [
-  { label: "Approach", key: "approach_score" },
-  { label: "Communication", key: "communication_score" },
-  { label: "Correctness", key: "code_correctness_score" },
-  { label: "Code quality", key: "code_quality_score" },
-  { label: "Time", key: "time_management_score" },
-];
-
 function numeric(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-/** Scores come straight from the backend; a missing score shows an em dash, never a guess. */
+/** The model's headline, or the summary's first sentence when there is none. */
+function oneLiner(debrief: Debrief | null): string | null {
+  const headline = debrief?.headline?.trim();
+  if (headline) return headline;
+  const summary = debrief?.summary?.trim();
+  return summary?.match(/^.+?[.!?](?=\s|$)/s)?.[0] ?? summary ?? null;
+}
+
+/** Counts up to the score once, easing out so it settles on the final number. */
+function useCountUp(target: number | null): number | null {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    if (target === null) return;
+    const started = performance.now();
+    let frame = requestAnimationFrame(function tick(now) {
+      const t = Math.min(1, (now - started) / COUNT_MS);
+      setValue(t < 1 ? Math.floor(target * (1 - (1 - t) ** 3)) : target);
+      if (t < 1) frame = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [target]);
+
+  return target === null ? null : value;
+}
+
+/** One score and one line: the rest of the debrief is the reason to open the dashboard. */
 export function DebriefCard({ debrief, sessionId, onViewFull, onPractice }: DebriefCardProps) {
   const overall = numeric(debrief?.overall_score);
-  const feedback = (debrief?.actionable_feedback ?? [])
-    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    .slice(0, 2);
+  const shown = useCountUp(overall);
+  const line = oneLiner(debrief);
 
   return (
-    <div className="lv-stack">
-      <span className="lv-eyebrow">Debrief ready</span>
-
-      <div className="lv-score-hero">
-        <span className={overall === null ? "lv-score-big lv-score-big--empty" : "lv-score-big"}>
-          {formatScore(overall)}
+    <div className="lv-verdict">
+      <p className="lv-score" aria-label={overall === null ? "No score" : `${formatScore(overall)} out of 10`}>
+        <span className={overall === null ? "lv-score-big lv-score-big--empty" : "lv-score-big"} aria-hidden="true">
+          {formatScore(shown)}
         </span>
-        <span className="lv-score-denom">/ 10 overall</span>
-      </div>
+        <span className="lv-score-denom" aria-hidden="true">/10</span>
+      </p>
 
-      <div className="lv-skills">
-        {SKILLS.map(({ label, key }) => {
-          const value = numeric(debrief?.[key]);
-          const width = value === null ? 0 : Math.min(10, Math.max(0, value)) * 10;
-          return (
-            <div className="lv-skill" key={key}>
-              <span className="lv-skill-name">{label}</span>
-              <span className={value === null ? "lv-skill-value lv-skill-value--empty" : "lv-skill-value"}>
-                {formatScore(value)}
-              </span>
-              <div className="lv-skill-track" aria-hidden="true">
-                <div className="lv-skill-fill" style={{ width: `${width}%` }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {line ? <p className="lv-verdict-line">{line}</p> : null}
 
-      {feedback.length > 0 ? (
-        <div className="lv-section">
-          <span className="lv-eyebrow">What to work on</span>
-          <ol className="lv-feedback">
-            {feedback.map((item, i) => (
-              <li key={i}>
-                <span className="lv-feedback-n">{String(i + 1).padStart(2, "0")}</span>
-                <span>{item}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      ) : null}
-
-      <div className="lv-stack">
+      <div className="lv-verdict-actions">
         <button
           type="button"
           className="lv-btn lv-btn--primary lv-btn--block"
@@ -81,7 +69,7 @@ export function DebriefCard({ debrief, sessionId, onViewFull, onPractice }: Debr
           <ExternalIcon />
           View full debrief
         </button>
-        <button type="button" className="lv-btn lv-btn--ghost lv-btn--block" onClick={onPractice}>
+        <button type="button" className="lv-btn lv-btn--quiet lv-btn--block" onClick={onPractice}>
           Practice again
         </button>
       </div>

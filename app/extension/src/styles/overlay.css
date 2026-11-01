@@ -768,16 +768,25 @@
 
 /* ---- Debrief --------------------------------------------------------------- */
 
-.lv-score-hero {
+.lv-verdict {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: center;
   gap: var(--space-3);
+  padding-top: var(--space-3);
+  text-align: center;
+}
+
+.lv-score {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
 }
 
 .lv-score-big {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 48px;
+  font-size: 84px;
   line-height: 0.9;
   letter-spacing: -0.03em;
   color: var(--signal);
@@ -789,78 +798,26 @@
 }
 
 .lv-score-denom {
-  padding-bottom: 6px;
-  font-family: var(--font-mono);
-  font-size: 12px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
   color: var(--text-3);
 }
 
-.lv-skills {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.lv-skill {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 6px 12px;
-  font-size: 12px;
-}
-
-.lv-skill-name {
-  color: var(--text-2);
-}
-
-.lv-skill-value {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
+.lv-verdict-line {
+  max-width: 240px;
+  font-size: 14px;
+  line-height: 1.45;
   color: var(--text-1);
+  text-wrap: balance;
 }
 
-.lv-skill-value--empty {
-  color: var(--text-3);
-}
-
-.lv-skill-track {
-  grid-column: 1 / -1;
-  height: 4px;
-  border-radius: var(--radius-pill);
-  background: var(--ink-3);
-  overflow: hidden;
-}
-
-.lv-skill-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--signal);
-  transition: width 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.lv-feedback {
+.lv-verdict-actions {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.lv-feedback li {
-  display: flex;
-  gap: 10px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-2);
-}
-
-.lv-feedback-n {
-  flex: none;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--signal);
-  padding-top: 2px;
+  gap: 2px;
+  width: 100%;
+  margin-top: var(--space-2);
 }
 
 .lv-meta {
