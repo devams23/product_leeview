@@ -1,5 +1,4 @@
-import { Card, CardHeader } from "../ui/Card";
-import { SkillRadar, type RadarDatum } from "../charts/SkillRadar";
+import { Card } from "../ui/Card";
 import { SkillBar } from "../SkillBar";
 import { EmptyState } from "../ui/EmptyState";
 import { formatScore, scoreTone, SKILLS, suggestedProblem, toneText } from "../../lib/format";
@@ -8,46 +7,29 @@ import type { Debrief } from "../../types";
 export function DebriefView({ debrief }: { debrief: Debrief }) {
   const overall = debrief.overall_score;
   const tone = scoreTone(overall);
-  // Unscored skills are left off the polygon rather than plotted at 0.
-  const radarData: RadarDatum[] = SKILLS.flatMap((skill) => {
-    const raw = debrief[skill.key];
-    return raw == null ? [] : [{ subject: skill.label, value: raw, raw }];
-  });
-  const hasRadar = SKILLS.some((skill) => debrief[skill.key] != null);
 
   return (
     <div className="flex flex-col gap-6">
-      <Card className="grid gap-8 p-6 sm:p-8 md:grid-cols-[auto_1fr] md:items-end">
-        <div className="flex flex-col">
-          <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-2">Overall</p>
-          <p className={`mt-2 font-display text-[104px] leading-[0.9] tabular-nums sm:text-[120px] ${toneText[tone]}`}>
-            {overall ?? "—"}
+      <Card className="grid rounded-shell lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        <div className="flex flex-col gap-5 p-6 sm:p-8">
+          <p className="flex items-baseline gap-2">
+            <span className={`font-display text-[88px] leading-[0.9] tabular-nums sm:text-[104px] ${toneText[tone]}`}>
+              {overall ?? "—"}
+            </span>
+            <span className="text-[15px] text-text-3">out of 10</span>
           </p>
-          <p className="mt-2 font-mono text-[12px] text-text-3">out of 10</p>
+          {debrief.summary ? (
+            <p className="max-w-[62ch] text-[16px] leading-relaxed text-text-1">{debrief.summary}</p>
+          ) : (
+            <p className="text-[15px] text-text-2">No summary was written for this interview.</p>
+          )}
         </div>
-        {debrief.summary ? (
-          <p className="max-w-[62ch] text-[16px] leading-relaxed text-text-1">{debrief.summary}</p>
-        ) : (
-          <p className="text-[15px] text-text-2">No summary was written for this interview.</p>
-        )}
+        <ul className="flex flex-col justify-center gap-5 border-t border-line p-6 sm:p-8 lg:border-l lg:border-t-0">
+          {SKILLS.map((skill) => (
+            <SkillBar key={skill.key} label={skill.label} value={debrief[skill.key]} />
+          ))}
+        </ul>
       </Card>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {hasRadar && (
-          <Card className="p-5 sm:p-6">
-            <CardHeader title="Skill profile" description="Each axis is scored out of 10." />
-            <SkillRadar data={radarData} />
-          </Card>
-        )}
-        <Card className={`p-5 sm:p-6 ${hasRadar ? "" : "lg:col-span-2"}`}>
-          <CardHeader title="Scores" />
-          <ul className="flex flex-col gap-5">
-            {SKILLS.map((skill) => (
-              <SkillBar key={skill.key} label={skill.label} value={debrief[skill.key]} />
-            ))}
-          </ul>
-        </Card>
-      </div>
 
       <section aria-labelledby="work-on" className="flex flex-col gap-4">
         <h2 id="work-on" className="text-[15px] font-medium text-text-1">

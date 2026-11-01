@@ -86,15 +86,11 @@ export function SessionSkeleton() {
         <Skeleton className="h-12 w-[min(560px,90%)]" />
         <Skeleton className="h-5 w-64 max-w-full" />
       </div>
-      <Card className="flex flex-col gap-4 p-6 sm:p-8">
+      <Card className="flex flex-col gap-4 rounded-shell p-6 sm:p-8">
         <Skeleton className="h-28 w-32" />
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-4 w-3/4" />
       </Card>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Skeleton className="h-80" />
-        <Skeleton className="h-80" />
-      </div>
     </div>
   );
 }
