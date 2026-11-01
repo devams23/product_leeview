@@ -2,7 +2,7 @@ import { Card, CardHeader } from "../ui/Card";
 import { SkillRadar, type RadarDatum } from "../charts/SkillRadar";
 import { SkillBar } from "../SkillBar";
 import { EmptyState } from "../ui/EmptyState";
-import { formatScore, leetcodeSearchUrl, scoreTone, SKILLS, toneText } from "../../lib/format";
+import { formatScore, scoreTone, SKILLS, suggestedProblem, toneText } from "../../lib/format";
 import type { Debrief } from "../../types";
 
 export function DebriefView({ debrief }: { debrief: Debrief }) {
@@ -76,15 +76,15 @@ export function DebriefView({ debrief }: { debrief: Debrief }) {
             Practice next
           </h2>
           <ul className="flex flex-wrap gap-2">
-            {debrief.similar_problems.map((problem) => (
-              <li key={problem}>
+            {debrief.similar_problems.map(suggestedProblem).map((problem) => (
+              <li key={problem.url}>
                 <a
-                  href={leetcodeSearchUrl(problem)}
+                  href={problem.url}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex h-8 items-center rounded-chip border border-line-2 bg-ink-2 px-3 text-[13px] text-text-1 transition-colors duration-150 hover:border-signal/50 hover:bg-ink-3"
                 >
-                  {problem}
+                  {problem.title}
                 </a>
               </li>
             ))}

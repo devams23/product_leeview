@@ -1,5 +1,5 @@
 import type { InterviewSession } from "../types";
-import { SKILLS, dayKey, formatScore, leetcodeSearchUrl, leetcodeUrl, type SkillKey } from "./format";
+import { SKILLS, dayKey, formatScore, leetcodeUrl, suggestedProblem, type SkillKey } from "./format";
 import { activityDate } from "./stats";
 
 /** Interviews a week. A weekly goal survives a missed day, which a daily streak does not. */
@@ -127,13 +127,6 @@ export interface NextInterview {
   reason: string;
 }
 
-function problemFromSuggestion(suggestion: string) {
-  const isSlug = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(suggestion);
-  if (!isSlug) return { title: suggestion, url: leetcodeSearchUrl(suggestion) };
-  const title = suggestion.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
-  return { title, url: leetcodeUrl(suggestion) };
-}
-
 const comparable = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /** In order: finish what was left, then the last debrief's suggestion, then redo a low score. */
@@ -157,7 +150,7 @@ function pickNext(sessions: InterviewSession[], scored: Scored[], now: Date): Ne
   const suggestion = newest?.session.debriefs?.similar_problems.find((p) => !attempted.has(comparable(p)));
   if (newest && suggestion) {
     return {
-      ...problemFromSuggestion(suggestion),
+      ...suggestedProblem(suggestion),
       reason: `Suggested after ${newest.session.leetcode_title}, where you scored ${newest.score}.`,
     };
   }

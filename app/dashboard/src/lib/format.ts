@@ -182,8 +182,19 @@ export function leetcodeUrl(slug: string): string {
   return `https://leetcode.com/problems/${encodeURIComponent(slug)}/`;
 }
 
-export function leetcodeSearchUrl(query: string): string {
-  return `https://leetcode.com/problemset/?search=${encodeURIComponent(query)}`;
+/** The model is asked for slugs but can send a title, a numbered title or a full link. */
+export function suggestedProblem(suggestion: string): { title: string; url: string } {
+  const text = suggestion.trim();
+  const linked = text.match(/leetcode\.com\/problems\/([^/?#]+)/i)?.[1];
+  const named = text.replace(/^\d+[.)]\s*/, "");
+  const slug = (linked ?? named)
+    .toLowerCase()
+    .replace(/['’()]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  const isTitle = !linked && /[A-Z\s]/.test(named);
+  const title = isTitle ? named : slug.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+  return { title, url: leetcodeUrl(slug) };
 }
 
 export function firstName(user: User | null): string {
