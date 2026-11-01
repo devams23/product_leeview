@@ -4,14 +4,12 @@ import App from "./App";
 import overlayCss from "../styles/overlay.css?inline";
 // Fonts must be declared at document level, so their @font-face CSS is injected into <head>.
 // Latin subsets only: the full subset CSS inlines every script and bloats content.js.
-import bricolageLatin from "@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2";
-import instrumentSansLatin from "@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2";
+import hankenLatin from "@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2";
 import mono400Latin from "@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2";
 import mono500Latin from "@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2";
 
 const FONTS = [
-  { family: "Bricolage Grotesque Variable", src: bricolageLatin, weight: "200 800" },
-  { family: "Instrument Sans Variable", src: instrumentSansLatin, weight: "400 700" },
+  { family: "Hanken Grotesk Variable", src: hankenLatin, weight: "100 900" },
   { family: "JetBrains Mono", src: mono400Latin, weight: "400" },
   { family: "JetBrains Mono", src: mono500Latin, weight: "500" },
 ];

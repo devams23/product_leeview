@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 // Latin subsets only, declared as @font-face so the popup bundle stays small.
-import bricolageLatin from "@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2";
-import instrumentSansLatin from "@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2";
+import hankenLatin from "@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2";
 import "@fontsource/jetbrains-mono/latin-400.css";
 import "@fontsource/jetbrains-mono/latin-500.css";
 import "./popup.css";
@@ -11,8 +10,7 @@ import { decodeJwtExp } from "../utils/jwt";
 
 const fontStyle = document.createElement("style");
 fontStyle.textContent = [
-  `@font-face{font-family:'Bricolage Grotesque Variable';font-style:normal;font-display:swap;font-weight:200 800;src:url(${bricolageLatin}) format('woff2');}`,
-  `@font-face{font-family:'Instrument Sans Variable';font-style:normal;font-display:swap;font-weight:400 700;src:url(${instrumentSansLatin}) format('woff2');}`,
+  `@font-face{font-family:'Hanken Grotesk Variable';font-style:normal;font-display:swap;font-weight:100 900;src:url(${hankenLatin}) format('woff2');}`,
 ].join("\n");
 document.head.appendChild(fontStyle);
 

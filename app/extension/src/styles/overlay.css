@@ -46,8 +46,8 @@
   --ease-hover: 150ms ease-out;
   --ease-panel: 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
 
-  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Hanken Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Hanken Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   all: initial;
@@ -184,7 +184,7 @@
 .lv-wordmark {
   font-family: var(--font-display);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1;
   letter-spacing: -0.02em;
   color: var(--text-1);
@@ -266,7 +266,7 @@
 .lv-launcher-label {
   font-family: var(--font-display);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: -0.01em;
   color: var(--text-1);
   white-space: nowrap;
@@ -298,7 +298,7 @@
   padding: 0 14px;
   border-radius: 9px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
   transition: background var(--ease-hover), color var(--ease-hover),
     box-shadow var(--ease-hover), transform var(--ease-hover);
@@ -445,7 +445,7 @@
 .lv-title {
   font-family: var(--font-display);
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.25;
   letter-spacing: -0.015em;
   color: var(--text-1);
@@ -532,7 +532,7 @@
 .lv-problem-title {
   font-family: var(--font-display);
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.25;
   letter-spacing: -0.015em;
   color: var(--text-1);
@@ -565,7 +565,7 @@
 .lv-status {
   font-family: var(--font-display);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.01em;
   color: var(--text-1);
   transition: color var(--ease-panel);
@@ -636,7 +636,7 @@
 
 .lv-score-big {
   font-family: var(--font-display);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 84px;
   line-height: 0.9;
   letter-spacing: -0.03em;
