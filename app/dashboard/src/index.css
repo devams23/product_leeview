@@ -24,6 +24,37 @@
     outline-offset: 2px;
   }
 
+  /* Every scroll area: a slim pill on a clear track, brightening under the pointer. */
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: theme("colors.line-2");
+    background-clip: padding-box;
+    border: 4px solid transparent;
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: theme("colors.text-3");
+    background-clip: padding-box;
+    border-width: 3px;
+  }
+
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: theme("colors.line-2") transparent;
+    }
+  }
+
   h1,
   h2,
   h3 {
