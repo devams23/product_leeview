@@ -78,8 +78,6 @@ export function ErrorCard({ error, onRetry, onSignIn, onDismiss }: ErrorCardProp
           Dismiss
         </button>
       )}
-
-      <span className="lv-eyebrow">Code · {error.code}</span>
     </div>
   );
 }

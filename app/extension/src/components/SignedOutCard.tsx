@@ -27,11 +27,9 @@ export function SignedOutCard({ expired, onSignIn, onReconnect, initialPhase = "
     return (
       <div className="lv-stack">
         <p className="lv-title">Sign in to start practicing</p>
-        <p className="lv-muted">Your interviews and debriefs save to your dashboard.</p>
         <button type="button" className="lv-btn lv-btn--primary lv-btn--block" onClick={onSignIn}>
           Sign in
         </button>
-        <p className="lv-meta">You'll come right back here after.</p>
       </div>
     );
   }
@@ -40,7 +38,6 @@ export function SignedOutCard({ expired, onSignIn, onReconnect, initialPhase = "
     return (
       <div className="lv-stack">
         <p className="lv-title">Your session expired</p>
-        <p className="lv-muted" role="status">Reconnecting in the background.</p>
         <button type="button" className="lv-btn lv-btn--primary lv-btn--block" disabled aria-busy="true">
           <span className="lv-spinner" aria-hidden="true" />
           Reconnecting…
@@ -53,11 +50,9 @@ export function SignedOutCard({ expired, onSignIn, onReconnect, initialPhase = "
     return (
       <div className="lv-stack">
         <p className="lv-title">Your session expired</p>
-        <p className="lv-muted">Sign in again to keep practicing.</p>
         <button type="button" className="lv-btn lv-btn--primary lv-btn--block" onClick={onSignIn}>
           Sign in
         </button>
-        <p className="lv-meta">Opens your LeeView dashboard</p>
       </div>
     );
   }
@@ -65,7 +60,6 @@ export function SignedOutCard({ expired, onSignIn, onReconnect, initialPhase = "
   return (
     <div className="lv-stack">
       <p className="lv-title">Your session expired</p>
-      <p className="lv-muted">Reconnect your account in one click.</p>
       <button
         type="button"
         className="lv-btn lv-btn--primary lv-btn--block"
