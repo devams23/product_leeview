@@ -154,7 +154,7 @@ export function SessionsTable({ history, page }: { history: HistoryView; page: H
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search problems"
-            className="h-10 w-full rounded-btn border border-line bg-ink-1 pl-9 pr-3 text-[14px] text-text-1 transition-colors duration-150 placeholder:text-text-3 hover:bg-ink-2 focus:border-line-2 focus:outline-none"
+            className="h-10 w-full rounded-btn border border-line bg-ink-1 pl-9 pr-3 text-[14px] text-text-1 transition-colors duration-150 placeholder:text-text-3 hover:bg-ink-2 focus:border-line-2 focus:outline-hidden"
           />
         </label>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:flex">

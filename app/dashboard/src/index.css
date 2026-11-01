@@ -1,10 +1,61 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  --color-ink-0: #1a1a1a;
+  --color-ink-1: #282828;
+  --color-ink-2: #323232;
+  --color-ink-3: #3e3e3e;
+
+  --color-line: rgba(255, 255, 255, 0.1);
+  --color-line-2: rgba(255, 255, 255, 0.16);
+  --color-text-1: #f7f7f7;
+  --color-text-2: #c4c4c4;
+  --color-text-3: #9a9a9a;
+  --color-signal: #ffa116;
+  --color-signal-hover: #ffb547;
+  --color-signal-ink: #1a1a1a;
+  --color-signal-soft: rgba(255, 161, 22, 0.12);
+  --color-ai: #b9a6ff;
+  --color-ai-soft: rgba(185, 166, 255, 0.14);
+  --color-danger: #ff6b6b;
+  --color-danger-soft: rgba(255, 107, 107, 0.12);
+  --color-warn: #ffc01e;
+  --color-warn-soft: rgba(255, 192, 30, 0.12);
+  --color-ok: #1cc8b4;
+  --color-ok-soft: rgba(28, 200, 180, 0.12);
+
+  --font-display:
+    'Hanken Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Hanken Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-chip: 6px;
+  --radius-btn: 10px;
+  --radius-card: 14px;
+  --radius-shell: 20px;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 @layer base {
   html {
-    background: theme("colors.ink.0");
+    background: var(--color-ink-0);
     color-scheme: dark;
   }
 
@@ -16,11 +67,11 @@
 
   ::selection {
     background: rgba(255, 161, 22, 0.3);
-    color: theme("colors.text-1");
+    color: var(--color-text-1);
   }
 
   :focus-visible {
-    outline: 2px solid theme("colors.signal");
+    outline: 2px solid var(--color-signal);
     outline-offset: 2px;
   }
 
@@ -36,14 +87,14 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: theme("colors.line-2");
+    background: var(--color-line-2);
     background-clip: padding-box;
     border: 4px solid transparent;
     border-radius: 999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: theme("colors.text-3");
+    background: var(--color-text-3);
     background-clip: padding-box;
     border-width: 3px;
   }
@@ -51,7 +102,7 @@
   @supports not selector(::-webkit-scrollbar) {
     * {
       scrollbar-width: thin;
-      scrollbar-color: theme("colors.line-2") transparent;
+      scrollbar-color: var(--color-line-2) transparent;
     }
   }
 
@@ -130,17 +181,17 @@
 }
 
 .lv-rays--thinking {
-  --lv-beam: theme("colors.text-3");
+  --lv-beam: var(--color-text-3);
   --lv-beam-power: 0.4;
 }
 
 .lv-rays--interviewer {
-  --lv-beam: theme("colors.ai");
+  --lv-beam: var(--color-ai);
   --lv-beam-power: 1;
 }
 
 .lv-rays--you {
-  --lv-beam: theme("colors.signal");
+  --lv-beam: var(--color-signal);
   --lv-beam-power: 1;
 }
 

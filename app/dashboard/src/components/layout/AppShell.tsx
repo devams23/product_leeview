@@ -108,7 +108,7 @@ export function AppShell() {
         </a>
         <nav aria-label="Primary" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden">
           {NAV_SECTIONS.map((section) => (
-            <div key={section.label} className="flex flex-col gap-1 border-line [&:not(:first-child)]:border-t [&:not(:first-child)]:pt-3">
+            <div key={section.label} className="flex flex-col gap-1 border-line not-first:border-t not-first:pt-3">
               {section.items.map((item) => (
                 <RailItem key={item.to} item={item} />
               ))}
@@ -150,7 +150,7 @@ export function AppShell() {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-ink-0/90 px-4 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-ink-0/90 px-4 backdrop-blur-sm lg:hidden">
         <Logo size={22} />
         <div className="flex items-center gap-1">
           <nav aria-label="Primary" className="flex items-center gap-1">
