@@ -201,7 +201,6 @@ export function Login() {
   // A failed sign-in is reported beside the button that started it.
   const [startedFromClose, setStartedFromClose] = useState(false);
   const { line, spoken, phase } = useInterviewScript();
-  const speakerLit = (speaker: string) => (phase !== "thinking" && line.speaker === speaker ? "opacity-100" : "opacity-0");
 
   useEffect(() => {
     if (!fromExtension) return;
@@ -272,11 +271,8 @@ export function Login() {
           </div>
 
           <figure className="lv-orb-in relative mt-4 flex w-full flex-col items-center" aria-label="Example of an interview">
-            {/* Light fans out from the orb beside the copy, in the colour of whoever is speaking. */}
-            <div className="lv-rays" aria-hidden="true">
-              <span className={`lv-ray lv-ray--ai ${speakerLit("interviewer")}`} />
-              <span className={`lv-ray lv-ray--signal ${speakerLit("you")}`} />
-            </div>
+            {/* Light spreads from the orb across the page, in the colour of whoever is speaking. */}
+            <div className={`lv-rays lv-rays--${phase === "thinking" ? "thinking" : line.speaker}`} aria-hidden="true" />
             <InterviewOrb speaker={line.speaker} phase={phase} spoken={spoken} />
             <figcaption className="relative -mt-3 min-h-[92px] w-full max-w-[46ch] text-left sm:min-h-[76px]">
               <div key={line.text}>

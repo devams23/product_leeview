@@ -93,7 +93,20 @@
   opacity: 1;
 }
 
-/* Landing page: the copy settles, then the orb lights and its rays open out either side of the text. */
+/* The colour is registered so it can transition: one light changing, rather than two layers cross-fading. */
+@property --lv-beam {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #9a9a9a;
+}
+
+@property --lv-beam-power {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.4;
+}
+
+/* Landing page: the orb is the only light source, so its wedges and the wash on the page share one colour. */
 .lv-rays {
   position: absolute;
   left: 50%;
@@ -102,6 +115,10 @@
   height: 1800px;
   transform: translate(-50%, -50%);
   pointer-events: none;
+  opacity: var(--lv-beam-power);
+  transition:
+    --lv-beam 900ms ease,
+    --lv-beam-power 900ms ease;
   -webkit-mask-image: radial-gradient(circle, #000 10%, transparent 72%);
   mask-image: radial-gradient(circle, #000 10%, transparent 72%);
 }
@@ -112,31 +129,47 @@
   }
 }
 
-.lv-ray {
-  position: absolute;
-  inset: 0;
-  filter: blur(16px);
-  transition: opacity 700ms ease;
+.lv-rays--thinking {
+  --lv-beam: theme("colors.text-3");
+  --lv-beam-power: 0.4;
 }
 
-/* Two wedges from the orb, up and outward at 60deg, which clears the centred copy. */
-.lv-ray--ai {
-  background: conic-gradient(
-    transparent 0 49deg,
-    rgba(185, 166, 255, 0.3) 60deg,
-    transparent 71deg 289deg,
-    rgba(185, 166, 255, 0.3) 300deg,
-    transparent 311deg
+.lv-rays--interviewer {
+  --lv-beam: theme("colors.ai");
+  --lv-beam-power: 1;
+}
+
+.lv-rays--you {
+  --lv-beam: theme("colors.signal");
+  --lv-beam-power: 1;
+}
+
+.lv-rays::before,
+.lv-rays::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* The light landing on the page itself. */
+.lv-rays::before {
+  background: radial-gradient(
+    circle closest-side,
+    color-mix(in srgb, var(--lv-beam) 26%, transparent),
+    color-mix(in srgb, var(--lv-beam) 9%, transparent) 45%,
+    transparent 80%
   );
 }
 
-.lv-ray--signal {
+/* Two wedges up and outward at 60deg, which clears the centred copy. */
+.lv-rays::after {
+  filter: blur(16px);
   background: conic-gradient(
-    transparent 0 49deg,
-    rgba(255, 161, 22, 0.22) 60deg,
-    transparent 71deg 289deg,
-    rgba(255, 161, 22, 0.22) 300deg,
-    transparent 311deg
+    transparent 0 48deg,
+    color-mix(in srgb, var(--lv-beam) 42%, transparent) 60deg,
+    transparent 72deg 288deg,
+    color-mix(in srgb, var(--lv-beam) 42%, transparent) 300deg,
+    transparent 312deg
   );
 }
 
@@ -219,8 +252,8 @@
   }
 
   /* The sample interview still plays, as fades with no movement. */
-  .lv-ray {
-    transition-duration: 700ms !important;
+  .lv-rays {
+    transition-duration: 900ms !important;
   }
 
   .lv-word {
