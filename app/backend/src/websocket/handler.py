@@ -101,6 +101,21 @@ class _InterviewContext:
     stage_entries: list = field(default_factory=list)  # (state, monotonic time it was entered)
     usage: SessionUsage = field(default_factory=SessionUsage)
     turn_index: int = 0
+    turn_task: Optional[asyncio.Task] = None  # the AI turn currently running, if any
+    last_activity: float = field(default_factory=time.monotonic)  # set by ACTIVITY messages
+    user_turns: int = 0
+
+
+# How often the receive loop wakes with no message, for timed checks (Task 9 uses it).
+CLOCK_TICK_S = 5.0
+
+
+async def _run_turn(coro):
+    """A turn's own failure is logged here, so it cannot end the receive loop."""
+    try:
+        await coro
+    except Exception as e:
+        logger.error(f"Turn failed: {e}", exc_info=True)
 
 
 async def _safe(fn, *args, **kwargs):
@@ -309,6 +324,7 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
     text = (data.get("text") or "").strip()
     if not text:
         return
+    ctx.user_turns += 1
 
     current_code = data.get("current_code") or ""
     if current_code.strip():
@@ -462,25 +478,51 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str, toke
     await _safe(update_session, token, session_id, status="ACTIVE")
 
     disconnected = False
+    recv = None
     try:
-        await send_intro(ctx)
+        # Turns run as tasks beside this loop, so End, pings and activity are handled while the model is still working.
+        ctx.turn_task = asyncio.create_task(_run_turn(send_intro(ctx)))
+        recv = asyncio.create_task(websocket.receive_json())
 
         while True:
-            data = await websocket.receive_json()
+            waiters = {recv} if ctx.turn_task is None else {recv, ctx.turn_task}
+            done, _ = await asyncio.wait(waiters, timeout=CLOCK_TICK_S, return_when=asyncio.FIRST_COMPLETED)
+
+            if ctx.turn_task is not None and ctx.turn_task.done():
+                ctx.turn_task = None
+                if sm.current_state == InterviewState.GENERATING_DEBRIEF:
+                    logger.info(f"[{session_id}] Reached GENERATING_DEBRIEF naturally")
+                    break
+
+            if recv not in done:
+                continue
+
+            data = recv.result()  # raises WebSocketDisconnect on a closed socket
+            recv = asyncio.create_task(websocket.receive_json())
             msg_type = data.get("type")
             logger.info(f"[{session_id}] Received WS message: {msg_type}")
 
             if msg_type == "USER_UTTERANCE":
-                await _handle_user_utterance(ctx, data)
-                if sm.current_state == InterviewState.GENERATING_DEBRIEF:
-                    logger.info(f"[{session_id}] Reached GENERATING_DEBRIEF naturally")
-                    break
+                if ctx.turn_task is not None:
+                    logger.info(f"[{session_id}] Utterance ignored, a turn is still running")
+                else:
+                    ctx.turn_task = asyncio.create_task(_run_turn(_handle_user_utterance(ctx, data)))
+
+            elif msg_type == "PING":
+                await _try_send(session_id, {"type": "PONG"})
+
+            elif msg_type == "ACTIVITY":
+                ctx.last_activity = time.monotonic()
 
             elif msg_type == "AUDIO_FINISHED_ACK":
                 logger.debug(f"[{session_id}] Received AUDIO_FINISHED_ACK")
 
             elif msg_type == "INTERRUPT":
                 logger.info(f"[{session_id}] Received INTERRUPT")
+                if ctx.turn_task is not None:
+                    ctx.turn_task.cancel()
+                    await asyncio.wait({ctx.turn_task})
+                    ctx.turn_task = None
                 from_state = sm.current_state
                 sm.force_transition(InterviewState.GENERATING_DEBRIEF)
                 await _on_transition(ctx, from_state, InterviewState.GENERATING_DEBRIEF, "USER_ACTION")
@@ -492,6 +534,12 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str, toke
     except Exception as e:
         logger.error(f"[{session_id}] Interview loop failed: {e}", exc_info=True)
         disconnected = True
+    finally:
+        pending = [t for t in (recv, ctx.turn_task) if t is not None and not t.done()]
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.wait(pending)
 
     await _save_code_snapshot(ctx)
 
