@@ -5,7 +5,8 @@ import re
 from typing import Any, Optional
 
 _STATE_LINE = re.compile(r"^STATE:\s*([A-Z_]+)\s*$")
-_SENTENCE_END = re.compile(r"[.?!](?=\s)")
+# A sentence ends at terminal punctuation, or at a line break: some models write one unpunctuated sentence per line.
+_SENTENCE_END = re.compile(r"[.?!](?=\s)|\n")
 _MIN_SENTENCE = 24
 _MAX_STATE_LINE = 200
 
@@ -141,7 +142,7 @@ class ReplyParser:
             if not match:
                 break
             end = match.end()
-            candidate = self._sentence[:end].strip()
+            candidate = " ".join(self._sentence[:end].split())
             if len(candidate) >= _MIN_SENTENCE:
                 sentences.append(candidate)
                 self._spoken = f"{self._spoken} {candidate}" if self._spoken else candidate
@@ -157,7 +158,8 @@ def interview_stream_instructions(allowed: list[str], allow_silence: bool) -> st
     """System-prompt suffix asking for a STATE line followed by the spoken reply."""
     text = (
         f"Reply in this exact format. First line: STATE: <one of {', '.join(allowed)}>. "
-        "Then, on the next lines, what you say aloud in plain spoken words."
+        "Then, on the next lines, what you say aloud: natural spoken sentences with normal punctuation, "
+        "one sentence per line."
     )
     if allow_silence:
         text += (

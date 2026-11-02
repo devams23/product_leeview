@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+import httpx
 from fastapi import WebSocket, WebSocketDisconnect
 
 from config import get_settings
@@ -137,7 +138,7 @@ async def _safe(fn, *args, **kwargs):
     try:
         return await asyncio.to_thread(fn, *args, **kwargs)
     except Exception as e:
-        logger.error(f"Persistence call {getattr(fn, '__name__', fn)} failed: {e}")
+        logger.error(f"Persistence call {getattr(fn, '__name__', fn)} failed: {_err(e)}")
         return None
 
 
@@ -332,8 +333,56 @@ class _TurnSpeech:
     async def _fail(self, e: Exception):
         if not self.tts_failed:
             self.tts_failed = True
-            logger.error(f"[{self.sid}] TTS failed: {e}")
+            logger.error(f"[{self.sid}] TTS failed: {_err(e)}")
             await _send_tts_failed(self.sid)
+
+
+# A hosted model sometimes accepts a request and then sends nothing. Waiting out the full read timeout
+# (and then a second, structured call) froze one turn for 44s, so a silent request is dropped early and retried once.
+FIRST_TOKEN_TIMEOUT_S = 8.0
+STREAM_ATTEMPTS = 2
+
+
+def _err(e: BaseException) -> str:
+    """Exception text for logs. Timeouts such as httpx.ReadTimeout have an empty message, so name the type."""
+    return f"{type(e).__name__}: {e}"
+
+
+def _is_stall(e: BaseException) -> bool:
+    """True when the provider did not answer in time or is overloaded, so another slow call would only add waiting."""
+    if isinstance(e, (TimeoutError, httpx.TransportError)):
+        return True
+    return isinstance(e, httpx.HTTPStatusError) and (e.response.status_code == 429 or e.response.status_code >= 500)
+
+
+async def _close_quietly(pieces) -> None:
+    try:
+        await pieces.aclose()
+    except Exception:
+        pass
+
+
+async def _reply_stream(llm, messages: list[dict], sid: str):
+    """The model's reply as it streams. A request that sends nothing within FIRST_TOKEN_TIMEOUT_S is dropped and retried."""
+    for attempt in range(1, STREAM_ATTEMPTS + 1):
+        pieces = llm.stream(messages)
+        try:
+            first = await asyncio.wait_for(anext(pieces, None), FIRST_TOKEN_TIMEOUT_S)
+        except Exception as e:
+            await _close_quietly(pieces)
+            if attempt == STREAM_ATTEMPTS or not _is_stall(e):
+                raise
+            logger.warning(f"[{sid}] LLM sent nothing within {FIRST_TOKEN_TIMEOUT_S:g}s ({_err(e)}), retrying")
+            continue
+        if first is None:
+            return
+        try:
+            yield first
+            async for piece in pieces:
+                yield piece
+        finally:
+            await _close_quietly(pieces)
+        return
 
 
 async def _stream_turn(
@@ -369,7 +418,7 @@ async def _stream_turn(
         nonlocal first_token_ms, llm_ms, stream_error, state_applied, returned_state
         try:
             try:
-                async for piece in ctx.llm.stream(stream_messages):
+                async for piece in _reply_stream(ctx.llm, stream_messages, sid):
                     if first_token_ms is None:
                         first_token_ms = _elapsed_ms(t0)
                     sentences = parser.feed(piece)
@@ -381,7 +430,7 @@ async def _stream_turn(
                         await speech.say(sentence)
             except Exception as e:
                 stream_error = e
-                logger.error(f"[{sid}] LLM stream failed: {e}")
+                logger.error(f"[{sid}] LLM stream failed: {_err(e)}")
 
             returned_state = parser.state
             if stream_error is None:
@@ -394,6 +443,9 @@ async def _stream_turn(
 
             # Nothing was spoken: silence is allowed only while the candidate is coding, anything else falls back.
             if not speech.sentences and (stream_error is not None or not silence_ok):
+                if stream_error is not None and _is_stall(stream_error):
+                    # The provider is not answering: a structured call to it would only double the wait.
+                    raise stream_error
                 logger.warning(f"[{sid}] Streamed reply was empty, falling back to structured output")
                 parsed = await ctx.llm.generate_structured(messages, interview_schema(state), max_attempts=1)
                 returned_state = parsed.get("next_state")
@@ -417,7 +469,7 @@ async def _stream_turn(
                 await asyncio.gather(producer, consumer, return_exceptions=True)
     except Exception as e:
         error_code = "LLM_FAILED" if speech is not None else "TTS_FAILED"
-        logger.error(f"[{sid}] {kind} turn failed ({error_code}): {e}")
+        logger.error(f"[{sid}] {kind} turn failed ({error_code}): {_err(e)}")
         await _record_turn(ctx, _turn_metrics(
             ctx, kind, ctx.sm.current_state, t0, before, _elapsed_ms(t0), error=error_code,
         ))
@@ -461,7 +513,7 @@ async def send_intro(ctx: _InterviewContext):
     try:
         await _stream_turn(ctx, messages, InterviewState.INTRO, "intro")
     except Exception as e:
-        logger.error(f"[{sid}] Intro LLM call failed: {e}")
+        logger.error(f"[{sid}] Intro LLM call failed: {_err(e)}")
         await _try_send(sid, {"type": "ERROR", "code": "LLM_FAILED", "message": "The interviewer could not start. Please try again."})
         await _try_send(sid, {"type": "STATE_CHANGED", "state": ctx.sm.current_state.value})
         await _try_send(sid, {"type": "AUDIO_FINISHED"})
@@ -502,7 +554,7 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
     try:
         await _stream_turn(ctx, messages, state_before, "reply")
     except Exception as e:
-        logger.error(f"[{sid}] LLM call failed: {e}")
+        logger.error(f"[{sid}] LLM call failed: {_err(e)}")
         await _try_send(sid, {"type": "ERROR", "code": "LLM_FAILED", "message": "The interviewer could not respond. Please try again."})
         await _try_send(sid, {"type": "AUDIO_FINISHED"})
 
@@ -556,7 +608,7 @@ async def _nudge_turn(ctx: _InterviewContext, idle_s: float):
         await _stream_turn(ctx, messages, state, "nudge")
     except Exception as e:
         # A missed check-in is harmless: the candidate is simply left to think.
-        logger.error(f"[{sid}] Check-in LLM call failed: {e}")
+        logger.error(f"[{sid}] Check-in LLM call failed: {_err(e)}")
 
 
 async def _timed_turn(ctx: _InterviewContext, action: str, idle_s: float):

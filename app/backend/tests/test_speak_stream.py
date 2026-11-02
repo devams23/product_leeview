@@ -228,3 +228,59 @@ def test_speak_fixed_speaks_text_and_records_history(wire):
     assert ctx.turn_index == 1
     assert tts.closed
     assert {"type": "AUDIO_FINISHED"} in wire["json"]
+
+
+class StallingLLM(FakeLLM):
+    """The first `stalls` stream requests hang before sending anything; later ones reply normally."""
+
+    def __init__(self, log, stalls, **kwargs):
+        super().__init__(log, **kwargs)
+        self.stalls = stalls
+        self.stream_calls = 0
+
+    async def stream(self, messages, temperature=0.6, max_tokens=400):
+        self.stream_calls += 1
+        if self.stream_calls <= self.stalls:
+            await asyncio.Event().wait()
+        async for piece in super().stream(messages, temperature, max_tokens):
+            yield piece
+
+
+def test_a_stalled_stream_is_retried_and_the_retry_is_spoken(wire, monkeypatch):
+    monkeypatch.setattr(handler, "FIRST_TOKEN_TIMEOUT_S", 0.05)
+    log = []
+    llm = StallingLLM(log, stalls=1)
+    ctx = make_ctx(llm, FakeTTS(log))
+
+    text, _ = asyncio.run(handler._stream_turn(ctx, MESSAGES, ctx.sm.current_state, "reply"))
+
+    assert llm.stream_calls == 2
+    assert text == "First sentence is right here. Second one follows now."
+    assert llm.structured_calls == []
+
+
+def test_a_stream_that_stalls_every_time_fails_fast_without_a_structured_call(wire, monkeypatch):
+    monkeypatch.setattr(handler, "FIRST_TOKEN_TIMEOUT_S", 0.05)
+    log = []
+    llm = StallingLLM(log, stalls=99)
+    ctx = make_ctx(llm, FakeTTS(log))
+
+    with pytest.raises(TimeoutError):
+        asyncio.run(handler._stream_turn(ctx, MESSAGES, ctx.sm.current_state, "reply"))
+
+    assert llm.stream_calls == handler.STREAM_ATTEMPTS
+    assert llm.structured_calls == []
+    assert not [e for e in log if e[0] == "speak"]
+
+
+def test_stream_failures_are_logged_with_the_exception_type(wire, caplog):
+    import httpx
+    log = []
+    llm = FakeLLM(log, stream_error=httpx.ReadTimeout(""))
+    ctx = make_ctx(llm, FakeTTS(log))
+
+    with caplog.at_level("ERROR"), pytest.raises(httpx.ReadTimeout):
+        asyncio.run(handler._stream_turn(ctx, MESSAGES, ctx.sm.current_state, "reply"))
+
+    assert "ReadTimeout" in caplog.text
+    assert llm.structured_calls == []

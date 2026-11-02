@@ -153,3 +153,19 @@ def test_openrouter_stream_yields_deltas_and_records_usage():
     assert collect(provider.stream(MESSAGES)) == ["Good ", "point."]
     assert provider.usage_snapshot() == (5, 2, 1)
     asyncio.run(provider.aclose())
+
+
+def test_reply_parser_splits_unpunctuated_lines_at_line_breaks():
+    # Some models write one sentence per line with no punctuation at all.
+    text = ("STATE: AWAITING_CLARIFICATION\nHi thanks for joining today\n"
+            "The problem is Two Sum given an array of integers and a target\nDo you have any questions")
+    parser = ReplyParser(["AWAITING_CLARIFICATION"], "INTRO")
+    sentences = feed_all(parser, text, 6)
+    assert sentences == ["Hi thanks for joining today",
+                         "The problem is Two Sum given an array of integers and a target"]
+    assert parser.finish() == ["Do you have any questions"]
+
+
+def test_interview_stream_instructions_ask_for_punctuated_sentences():
+    text = interview_stream_instructions(["AWAITING_CODE"], allow_silence=False)
+    assert "normal punctuation" in text
