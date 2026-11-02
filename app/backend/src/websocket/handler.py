@@ -112,6 +112,17 @@ async def _safe(fn, *args, **kwargs):
         return None
 
 
+# Strong references to background persistence tasks, so they are not garbage-collected mid-write.
+_BACKGROUND: set = set()
+
+
+def _bg(fn, *args, **kwargs) -> None:
+    """Persist off the turn path: schedule _safe(fn, ...) and keep it alive until it finishes."""
+    task = asyncio.create_task(_safe(fn, *args, **kwargs))
+    _BACKGROUND.add(task)
+    task.add_done_callback(_BACKGROUND.discard)
+
+
 async def _try_send(session_id: str, message: dict):
     """Send without letting a closed socket break the interview flow."""
     try:
@@ -148,9 +159,9 @@ async def _on_transition(ctx: _InterviewContext, from_state: InterviewState, to_
     ctx.transitions.append((from_state, to_state, triggered_by))
     ctx.stage_entries.append((to_state, time.monotonic()))
     await _try_send(ctx.session_id, {"type": "STATE_CHANGED", "state": to_state.value})
-    await _safe(log_state_transition, ctx.token, ctx.session_id, from_state.value, to_state.value, triggered_by)
-    if to_state == InterviewState.AWAITING_WALKTHROUGH:
-        await _save_code_snapshot(ctx)
+    _bg(log_state_transition, ctx.token, ctx.session_id, from_state.value, to_state.value, triggered_by)
+    if to_state == InterviewState.AWAITING_WALKTHROUGH and ctx.last_code.strip():
+        _bg(save_code_snapshot, ctx.token, ctx.session_id, ctx.last_code, ctx.language)
 
 
 def _apply_llm_transition(sm: StateMachine, next_state_str: Optional[str], session_id: str):
@@ -208,7 +219,7 @@ async def _record_turn(ctx: _InterviewContext, m: TurnMetrics):
     ctx.usage.add_turn(m)
     ctx.turn_index += 1
     logger.info("turn_metrics %s", json.dumps(asdict(m)))
-    await _safe(save_turn_metrics, ctx.session_id, asdict(m))
+    _bg(save_turn_metrics, ctx.session_id, asdict(m))
 
 
 async def _save_session_usage(ctx: _InterviewContext):
@@ -231,7 +242,7 @@ async def _speak(ctx: _InterviewContext, text: str, state: InterviewState) -> tu
     Returns (ms from the TTS request to the first audio chunk, or None if none came; characters sent to TTS).
     """
     sid = ctx.session_id
-    await _safe(log_transcript, ctx.token, sid, "AI", text, state.value)
+    _bg(log_transcript, ctx.token, sid, "AI", text, state.value)
     await _try_send(sid, {"type": "AI_TEXT", "text": text})
 
     tts_first_audio_ms = None
@@ -268,7 +279,7 @@ async def send_intro(ctx: _InterviewContext):
     t0 = time.monotonic()
     before = ctx.llm.usage_snapshot()
     try:
-        parsed = await ctx.llm.generate_structured(messages, interview_schema(InterviewState.INTRO))
+        parsed = await ctx.llm.generate_structured(messages, interview_schema(InterviewState.INTRO), max_attempts=2)
         response_text = parsed["response_text"]
         next_state_str = parsed.get("next_state")
     except Exception as e:
@@ -309,20 +320,18 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
     logger.info(f"[{sid}] User utterance: '{text[:100]}' (state: {state_before})")
 
     await _try_send(sid, {"type": "AI_THINKING"})
-    await _safe(log_transcript, ctx.token, sid, "USER", text, state_before.value)
+    _bg(log_transcript, ctx.token, sid, "USER", text, state_before.value)
 
     messages = build_interview_prompt(state_before, ctx.problem_context, ctx.conversation_history, text, current_code)
 
     # Recorded before the call: a failed reply must not erase what the candidate said from the debrief.
-    user_msg_content = f"Candidate: {text}"
-    if current_code:
-        user_msg_content += f"\n\n[Code Snapshot]:\n{current_code}"
-    ctx.conversation_history.append({"role": "user", "content": user_msg_content})
+    # Code is only sent with the newest message (build_interview_prompt); history keeps the words.
+    ctx.conversation_history.append({"role": "user", "content": f"Candidate: {text}"})
 
     t0 = time.monotonic()
     before = ctx.llm.usage_snapshot()
     try:
-        parsed = await ctx.llm.generate_structured(messages, interview_schema(state_before))
+        parsed = await ctx.llm.generate_structured(messages, interview_schema(state_before), max_attempts=2)
         response_text = parsed["response_text"]
         next_state_str = parsed.get("next_state")
     except Exception as e:
@@ -493,11 +502,21 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str, toke
             status="INTERRUPTED", completed_at=_now_iso(), total_duration_seconds=_duration_seconds(ctx),
         )
         await _save_session_usage(ctx)
+        await _close_llm(llm)
         return
 
     await _run_debrief(ctx)
     await _save_session_usage(ctx)
     manager.disconnect(session_id)
+    await _close_llm(llm)
+
+
+async def _close_llm(llm: Any):
+    """Release the provider's HTTP connections. A failure here must not affect the interview's end."""
+    try:
+        await llm.aclose()
+    except Exception as e:
+        logger.warning(f"Could not close the LLM client: {e}")
 
 
 def build_interview_prompt(state: InterviewState, problem_context: dict, conversation_history: list, user_text: str = "", current_code: str = "") -> list[dict]:

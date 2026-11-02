@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import websockets
@@ -7,6 +8,9 @@ from config import get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+OPEN_TIMEOUT_S = 5.0
+RECV_TIMEOUT_S = 10.0
 
 
 class DeepgramTTSClient:
@@ -20,21 +24,31 @@ class DeepgramTTSClient:
         logger.info("received text to synthesize: %s", text)
 
         """Yields PCM audio chunks."""
-        async with websockets.connect(self.ws_url, subprotocols=["token", self.api_key]) as ws:
-            # Send text to synthesize
-            await ws.send(json.dumps({"type": "Speak", "text": text}))
-            # Flush to signal end of text
-            await ws.send(json.dumps({"type": "Flush"}))
+        try:
+            async with websockets.connect(
+                self.ws_url, subprotocols=["token", self.api_key], open_timeout=OPEN_TIMEOUT_S
+            ) as ws:
+                # Send text to synthesize
+                await ws.send(json.dumps({"type": "Speak", "text": text}))
+                # Flush to signal end of text
+                await ws.send(json.dumps({"type": "Flush"}))
 
-            async for message in ws:
-                if isinstance(message, bytes):
-                    yield message
-                else:
-                    data = json.loads(message)
-                    logger.debug("Deepgram TTS message: %s", data)
-                    if data.get("type") == "Flushed":
-                        logger.info("Deepgram TTS flushed, ending stream")
+                while True:
+                    try:
+                        message = await asyncio.wait_for(ws.recv(), RECV_TIMEOUT_S)
+                    except websockets.ConnectionClosedOK:
                         break
-                    elif data.get("type") == "Error":
-                        logger.error("Deepgram TTS error: %s", data)
-                        raise RuntimeError(f"Deepgram TTS error: {data.get('description') or data}")
+                    if isinstance(message, bytes):
+                        yield message
+                    else:
+                        data = json.loads(message)
+                        logger.debug("Deepgram TTS message: %s", data)
+                        if data.get("type") == "Flushed":
+                            logger.info("Deepgram TTS flushed, ending stream")
+                            break
+                        elif data.get("type") == "Error":
+                            logger.error("Deepgram TTS error: %s", data)
+                            raise RuntimeError(f"Deepgram TTS error: {data.get('description') or data}")
+        except asyncio.TimeoutError as e:
+            logger.error("Deepgram TTS timed out: %s", e)
+            raise RuntimeError("Deepgram TTS timed out") from e

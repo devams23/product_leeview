@@ -20,8 +20,6 @@ class OpenRouterProvider(LLMProvider):
             "HTTP-Referer": "https://leeview.app",
             "X-Title": "LeeView Mock Interview",
         }
-        self.timeout = httpx.Timeout(30.0, connect=10.0)
-
     @property
     def provider_name(self) -> str:
         return "openrouter"
@@ -43,13 +41,12 @@ class OpenRouterProvider(LLMProvider):
         if response_format:
             payload["response_format"] = response_format
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers=self.headers,
-                json=payload,
-            )
-            response.raise_for_status()
-            data = response.json()
-            self.record_usage(data.get("usage"))
-            return data["choices"][0]["message"].get("content") or ""
+        response = await self._http().post(
+            f"{self.base_url}/chat/completions",
+            headers=self.headers,
+            json=payload,
+        )
+        response.raise_for_status()
+        data = response.json()
+        self.record_usage(data.get("usage"))
+        return data["choices"][0]["message"].get("content") or ""

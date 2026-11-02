@@ -19,8 +19,6 @@ class NVIDIANIMProvider(LLMProvider):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        self.timeout = httpx.Timeout(30.0, connect=10.0)
-
     @property
     def provider_name(self) -> str:
         return "nvidia_nim"
@@ -42,21 +40,20 @@ class NVIDIANIMProvider(LLMProvider):
         if response_format:
             payload["response_format"] = response_format
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers=self.headers,
-                json=payload,
+        response = await self._http().post(
+            f"{self.base_url}/chat/completions",
+            headers=self.headers,
+            json=payload,
+        )
+        if response.is_error:
+            # Name the model and keep NVIDIA's message: a bare "410 Gone" hides that the model was retired.
+            raise httpx.HTTPStatusError(
+                f"NVIDIA NIM {response.status_code} for model '{self.model}': {response.text[:300]}",
+                request=response.request,
+                response=response,
             )
-            if response.is_error:
-                # Name the model and keep NVIDIA's message: a bare "410 Gone" hides that the model was retired.
-                raise httpx.HTTPStatusError(
-                    f"NVIDIA NIM {response.status_code} for model '{self.model}': {response.text[:300]}",
-                    request=response.request,
-                    response=response,
-                )
-            data = response.json()
-            self.record_usage(data.get("usage"))
-            content = data["choices"][0]["message"].get("content") or ""
-            # Reasoning models prepend their thinking; the interviewer must only say the answer.
-            return re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+        data = response.json()
+        self.record_usage(data.get("usage"))
+        content = data["choices"][0]["message"].get("content") or ""
+        # Reasoning models prepend their thinking; the interviewer must only say the answer.
+        return re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()

@@ -25,6 +25,22 @@ class LLMProvider(ABC):
     supports_response_format = True
     # Attempts made by the most recent generate_structured call.
     last_attempts = 0
+    timeout = httpx.Timeout(20.0, connect=5.0)
+
+    def _http(self) -> httpx.AsyncClient:
+        """One HTTP client per provider instance, created on first use so its connection pool is reused."""
+        client = getattr(self, "_client", None)
+        if client is None:
+            client = httpx.AsyncClient(timeout=self.timeout)
+            self._client = client
+        return client
+
+    async def aclose(self) -> None:
+        """Close the HTTP client if one was opened."""
+        client = getattr(self, "_client", None)
+        if client is not None:
+            await client.aclose()
+            self._client = None
 
     def record_usage(self, usage: Optional[dict[str, Any]]) -> None:
         """Add one completed request's token counts. Providers call this with the response's usage block."""
@@ -69,12 +85,13 @@ class LLMProvider(ABC):
         messages: list[dict[str, str]],
         json_schema: dict[str, Any],
         temperature: float = 0.5,
+        max_attempts: int = MAX_ATTEMPTS,
     ) -> dict[str, Any]:
         """Generate a response that conforms to a JSON schema."""
         attempt_messages = with_json_instructions(messages, json_schema)
         problem = "no attempt was made"
 
-        for attempt in range(1, MAX_ATTEMPTS + 1):
+        for attempt in range(1, max_attempts + 1):
             self.last_attempts = attempt
             try:
                 reply = await self._generate_json(attempt_messages, json_schema, temperature)
@@ -96,13 +113,13 @@ class LLMProvider(ABC):
                 attempt_messages = attempt_messages + correction(reply, problem)
                 logger.warning(
                     "%s structured attempt %d/%d rejected (%s): %.300r",
-                    self.provider_name, attempt, MAX_ATTEMPTS, problem, reply,
+                    self.provider_name, attempt, max_attempts, problem, reply,
                 )
                 continue
 
-            logger.warning("%s structured attempt %d/%d failed: %s", self.provider_name, attempt, MAX_ATTEMPTS, problem)
-            if attempt < MAX_ATTEMPTS:
-                await asyncio.sleep(attempt)
+            logger.warning("%s structured attempt %d/%d failed: %s", self.provider_name, attempt, max_attempts, problem)
+            if attempt < max_attempts:
+                await asyncio.sleep(0.5 * attempt)
 
         raise StructuredOutputError(problem)
 
