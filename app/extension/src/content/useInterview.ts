@@ -4,6 +4,7 @@ import { InterviewWebSocket, createSession } from "../services/websocket";
 import { DeepgramSTT } from "../services/deepgramStt";
 import { makeError, toInterviewError } from "../services/errors";
 import { getProblemData, slugFromPath } from "../utils/domScraper";
+import { IntroGate, MIN_CALM_MS } from "./introGate";
 
 const PLAYBACK_SAMPLE_RATE = 24000;
 // Silence after the last final segment before the utterance is sent (spec §5).
@@ -18,13 +19,13 @@ const SORRY_TEXT = "Sorry, something glitched — could you repeat that?";
 
 const LIVE_PHASES: ReadonlySet<Phase> = new Set<Phase>(["LISTENING", "AI_SPEAKING", "THINKING"]);
 // Phases in which server audio is still played.
-const AUDIO_PHASES: ReadonlySet<Phase> = new Set<Phase>(["CONNECTING", "LISTENING", "AI_SPEAKING", "THINKING"]);
+const AUDIO_PHASES: ReadonlySet<Phase> = new Set<Phase>(["CONNECTING", "PREPARING", "LISTENING", "AI_SPEAKING", "THINKING"]);
 const STAGES: ReadonlySet<string> = new Set<string>([
   "INTRO", "AWAITING_CLARIFICATION", "AWAITING_APPROACH", "AWAITING_CODE",
   "AWAITING_WALKTHROUGH", "CONCLUDING", "GENERATING_DEBRIEF", "COMPLETED",
 ]);
 
-type TimerKey = "flush" | "drain" | "elapsed" | "keepAlive" | "level" | "debrief";
+type TimerKey = "flush" | "drain" | "elapsed" | "keepAlive" | "level" | "debrief" | "calm";
 
 function hexToBytes(hexData: string): Uint8Array {
   const cleanHex = hexData.replace(/[^0-9a-fA-F]/g, "");
@@ -78,6 +79,8 @@ export function useInterview(auth: AuthState): {
   const slugRef = useRef<string | null>(null);
 
   const wsRef = useRef<InterviewWebSocket | null>(null);
+  // Holds the opening audio until the calm screen has been shown for MIN_CALM_MS.
+  const gateRef = useRef<IntroGate<any> | null>(null);
   const sttRef = useRef<DeepgramSTT | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -207,6 +210,7 @@ export function useInterview(auth: AuthState): {
   function cleanupAll() {
     generationRef.current += 1;
     clearAllTimers();
+    gateRef.current = null;
     teardownNetwork();
     teardownMedia();
     bufferRef.current = "";
@@ -337,8 +341,8 @@ export function useInterview(auth: AuthState): {
       case "AUDIO_FINISHED": {
         clearTimer("drain");
         const p = phaseRef.current;
-        if (p === "THINKING") {
-          // Turn ended without audio (e.g. LLM failure) — hand the floor back.
+        if (p === "THINKING" || p === "PREPARING") {
+          // Turn ended without audio (e.g. LLM failure, or an opening that had none): hand the floor back.
           applyPhase("LISTENING");
         } else if (p === "AI_SPEAKING") {
           // Wait for queued audio to drain before listening again.
@@ -409,7 +413,7 @@ export function useInterview(auth: AuthState): {
     const p = phaseRef.current;
     if (p === "GENERATING_DEBRIEF") {
       fail(makeError("DEBRIEF_FAILED", "The connection closed before your debrief was ready."));
-    } else if (p === "PREFLIGHT" || p === "CONNECTING" || LIVE_PHASES.has(p)) {
+    } else if (p === "PREFLIGHT" || p === "CONNECTING" || p === "PREPARING" || LIVE_PHASES.has(p)) {
       fail(makeError("CONNECTION_LOST"));
     }
   }
@@ -565,10 +569,26 @@ export function useInterview(auth: AuthState): {
       if (isStale()) return;
       setSessionId(newSessionId);
 
+      // The gate is in place before the socket opens, so no opening message can slip past it.
+      const gate = new IntroGate<any>();
+      gateRef.current = gate;
       const ws = new InterviewWebSocket();
       wsRef.current = ws;
-      await ws.connect(newSessionId, token, handleServerMessage, () => handleSocketClose(ws));
+      await ws.connect(
+        newSessionId,
+        token,
+        (msg) => {
+          if (!gateRef.current?.offer(msg)) handleServerMessage(msg);
+        },
+        () => handleSocketClose(ws),
+      );
       if (isStale()) return;
+
+      applyPhase("PREPARING");
+      setTimer("calm", () => {
+        if (isStale()) return;
+        gate.open().forEach(handleServerMessage);
+      }, MIN_CALM_MS);
 
       const stt = new DeepgramSTT();
       await stt.connect({
@@ -590,9 +610,6 @@ export function useInterview(auth: AuthState): {
       syncSending();
       startRecorder(stream, stt);
       setTimer("keepAlive", () => sttRef.current?.keepAlive(), KEEPALIVE_MS, true);
-
-      // Intro audio may already have moved us to AI_SPEAKING while connecting.
-      if (phaseRef.current === "CONNECTING") applyPhase("LISTENING");
     } catch (err) {
       if (isStale()) return;
       fail(toInterviewError(err, "UNKNOWN"));

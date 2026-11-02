@@ -617,6 +617,28 @@
 
 /* ---- Generating / connecting ------------------------------------------------ */
 
+/* ---- Take a breath (opening calm screen) ------------------------------------ */
+
+.lv-breathe {
+  display: block;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--signal-soft);
+  box-shadow: inset 0 0 0 1px var(--signal-ring);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lv-breathe {
+    animation: lv-breathe 8s ease-in-out infinite;
+  }
+}
+
+@keyframes lv-breathe {
+  0%, 100% { transform: scale(0.85); }
+  50% { transform: scale(1.1); }
+}
+
 /* ---- Debrief --------------------------------------------------------------- */
 
 .lv-verdict {
