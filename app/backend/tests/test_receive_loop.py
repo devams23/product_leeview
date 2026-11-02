@@ -133,3 +133,16 @@ def test_ping_answered_while_turn_is_blocked(monkeypatch):
     assert {"type": "PONG"} in fake_ws.sent
     assert llm.cancelled
     assert debriefs == []
+
+
+def test_cap_speaks_closing_line_and_runs_debrief(monkeypatch):
+    import websocket.clock as clock
+
+    monkeypatch.setattr(clock, "CAP_AT_S", 0)
+    llm = ScriptedLLM()
+    fake_ws, debriefs = run_session(monkeypatch, [], llm)
+
+    assert len(debriefs) == 1
+    assert llm.calls == 1  # only the intro; the cap line is fixed text
+    spoken = [m["text"] for m in fake_ws.sent if m.get("type") == "AI_TEXT"]
+    assert spoken[-1] == handler.CAP_TEXT

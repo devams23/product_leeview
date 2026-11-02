@@ -14,6 +14,7 @@ from state_machine.machine import StateMachine
 from state_machine.states import InterviewState
 from state_machine.transitions import VALID_TRANSITIONS
 from metrics import SessionUsage, TurnMetrics
+from websocket.clock import timed_action
 from services.llm import create_llm_provider
 from services.deepgram import DeepgramTTSClient
 from services.supabase_client import (
@@ -104,10 +105,15 @@ class _InterviewContext:
     turn_task: Optional[asyncio.Task] = None  # the AI turn currently running, if any
     last_activity: float = field(default_factory=time.monotonic)  # set by ACTIVITY messages
     user_turns: int = 0
+    warned: bool = False  # the five-minutes-left line has been said
+    nudges_in_row: int = 0  # check-ins since the candidate last spoke
 
 
-# How often the receive loop wakes with no message, for timed checks (Task 9 uses it).
+# How often the receive loop wakes with no message, for timed checks.
 CLOCK_TICK_S = 5.0
+
+WARN_TEXT = "Quick heads-up: we have about five minutes left."
+CAP_TEXT = "We're at time, so let's stop here. I'll put together your feedback now."
 
 
 async def _run_turn(coro):
@@ -325,6 +331,7 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
     if not text:
         return
     ctx.user_turns += 1
+    ctx.nudges_in_row = 0
 
     current_code = data.get("current_code") or ""
     if current_code.strip():
@@ -368,6 +375,88 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
 
     speech = await _speak(ctx, response_text, ctx.sm.current_state)
     await _record_turn(ctx, _turn_metrics(ctx, "reply", ctx.sm.current_state, t0, before, llm_ms, speech))
+
+
+async def _speak_fixed(ctx: _InterviewContext, text: str, state: InterviewState, kind: str):
+    """Speak a fixed line without an LLM call. It joins the transcript and gets its own metrics row."""
+    t0 = time.monotonic()
+    ctx.conversation_history.append({"role": "assistant", "content": text})
+    tts_first_audio_ms, tts_chars = await _speak(ctx, text, state)
+    await _record_turn(ctx, TurnMetrics(
+        turn_index=ctx.turn_index,
+        state=state.value,
+        kind=kind,
+        tts_first_audio_ms=tts_first_audio_ms,
+        first_audio_ms=tts_first_audio_ms,
+        total_ms=_elapsed_ms(t0),
+        tts_chars=tts_chars,
+    ))
+
+
+async def _nudge_turn(ctx: _InterviewContext, idle_s: float):
+    """A gentle check-in while the candidate is quiet. The note to the model is not stored as the candidate's words."""
+    sid = ctx.session_id
+    state = ctx.sm.current_state
+    ctx.nudges_in_row += 1
+
+    note = (
+        f"(No reply from the candidate for about {int(idle_s)} seconds. Check in briefly and kindly, "
+        "offering a small hint only if they seem stuck.)"
+    )
+    if ctx.last_code.strip():
+        note += f"\n\n[Current Code Snapshot]:\n{ctx.last_code}"
+    messages = build_interview_prompt(state, ctx.problem_context, ctx.conversation_history)
+    messages.append({"role": "user", "content": note})
+    logger.info(f"[{sid}] Check-in after {int(idle_s)}s of silence (state: {state})")
+
+    t0 = time.monotonic()
+    before = ctx.llm.usage_snapshot()
+    try:
+        parsed = await ctx.llm.generate_structured(messages, interview_schema(state), max_attempts=2)
+        response_text = parsed["response_text"]
+        next_state_str = parsed.get("next_state")
+    except Exception as e:
+        # A missed check-in is harmless: the candidate is simply left to think.
+        logger.error(f"[{sid}] Check-in LLM call failed: {e}")
+        await _record_turn(ctx, _turn_metrics(ctx, "nudge", state, t0, before, _elapsed_ms(t0), error="LLM_FAILED"))
+        return
+    llm_ms = _elapsed_ms(t0)
+
+    ctx.conversation_history.append({"role": "assistant", "content": response_text})
+
+    transition = _apply_llm_transition(ctx.sm, next_state_str, sid)
+    if transition:
+        await _on_transition(ctx, *transition)
+
+    speech = await _speak(ctx, response_text, ctx.sm.current_state)
+    await _record_turn(ctx, _turn_metrics(ctx, "nudge", ctx.sm.current_state, t0, before, llm_ms, speech))
+
+
+async def _timed_turn(ctx: _InterviewContext, action: str, idle_s: float):
+    if action == "warn":
+        ctx.warned = True
+        await _speak_fixed(ctx, WARN_TEXT, ctx.sm.current_state, "notice")
+    elif action == "cap":
+        # The transition comes after the closing line; the receive loop ends the session once this task is done.
+        await _speak_fixed(ctx, CAP_TEXT, ctx.sm.current_state, "notice")
+        from_state = ctx.sm.current_state
+        ctx.sm.force_transition(InterviewState.GENERATING_DEBRIEF)
+        await _on_transition(ctx, from_state, InterviewState.GENERATING_DEBRIEF, "TIMEOUT")
+    else:
+        await _nudge_turn(ctx, idle_s)
+
+
+def _start_clock_action(ctx: _InterviewContext):
+    """Run the timed action that is due, if any. Called only when no AI turn is running."""
+    now = time.monotonic()
+    idle_s = now - ctx.last_activity
+    action = timed_action(
+        ctx.sm.current_state, now - ctx.started_at, idle_s, ctx.warned, ctx.nudges_in_row,
+    )
+    if action is None:
+        return
+    logger.info(f"[{ctx.session_id}] Timed action: {action}")
+    ctx.turn_task = asyncio.create_task(_run_turn(_timed_turn(ctx, action, idle_s)))
 
 
 def _clean_list(items) -> list:
@@ -490,9 +579,13 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str, toke
 
             if ctx.turn_task is not None and ctx.turn_task.done():
                 ctx.turn_task = None
+                ctx.last_activity = time.monotonic()
                 if sm.current_state == InterviewState.GENERATING_DEBRIEF:
                     logger.info(f"[{session_id}] Reached GENERATING_DEBRIEF naturally")
                     break
+
+            if ctx.turn_task is None:
+                _start_clock_action(ctx)
 
             if recv not in done:
                 continue
