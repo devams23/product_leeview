@@ -1,5 +1,6 @@
 import asyncio
 import os
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 import pytest
@@ -10,6 +11,13 @@ from fastapi import WebSocketDisconnect
 
 import websocket.handler as handler
 from services.llm.base import LLMProvider
+
+
+class AfterSent:
+    """Marker: the next client message is delivered only once the server has sent a message of this type."""
+
+    def __init__(self, msg_type):
+        self.msg_type = msg_type
 
 
 class FakeWebSocket:
@@ -23,6 +31,10 @@ class FakeWebSocket:
 
     async def receive_json(self):
         item = await self.queue.get()
+        if isinstance(item, AfterSent):
+            while not any(m.get("type") == item.msg_type for m in self.sent):
+                await asyncio.sleep(0.001)
+            item = await self.queue.get()
         if isinstance(item, WebSocketDisconnect):
             raise item
         return item
@@ -32,7 +44,7 @@ class FakeWebSocket:
 
 
 class ScriptedLLM(LLMProvider):
-    """The first call (the intro) returns at once. Every later call blocks until it is cancelled."""
+    """The first stream (the intro) finishes at once. Every later stream blocks until it is cancelled."""
 
     def __init__(self):
         self.calls = 0
@@ -45,27 +57,47 @@ class ScriptedLLM(LLMProvider):
         return "fake"
 
     async def generate(self, messages, temperature=0.7, response_format=None, max_tokens=1024):
-        raise AssertionError("the interview turns use generate_structured")
+        raise AssertionError("the interview turns use stream")
 
-    async def generate_structured(self, messages, json_schema, temperature=0.5, max_attempts=3):
+    async def stream(self, messages, temperature=0.6, max_tokens=400):
         self.calls += 1
         if self.calls == 1:
-            return {"response_text": "Hello there.", "next_state": "AWAITING_CLARIFICATION"}
+            yield "STATE: AWAITING_CLARIFICATION\nHello there, welcome along. "
+            return
         self.blocked = True
         try:
             await asyncio.Event().wait()
         except asyncio.CancelledError:
             self.cancelled = True
             raise
-        return {"response_text": "never", "next_state": "AWAITING_CLARIFICATION"}
+        yield "never"
 
     def usage_snapshot(self):
         return (0, 0, 0)
 
 
+class FakeTTSSession:
+    def __init__(self):
+        self.queue: asyncio.Queue = asyncio.Queue()
+
+    async def speak(self, text):
+        self.queue.put_nowait(b"\x00\x00")
+
+    async def end(self):
+        self.queue.put_nowait(None)
+
+    async def audio(self):
+        while True:
+            item = await self.queue.get()
+            if item is None:
+                return
+            yield item
+
+
 class FakeTTS:
-    async def stream_tts(self, text):
-        yield b"\x00\x00"
+    @asynccontextmanager
+    async def session(self):
+        yield FakeTTSSession()
 
 
 def noop(*args, **kwargs):
@@ -105,7 +137,7 @@ def test_interrupt_cancels_running_turn(monkeypatch):
     llm = ScriptedLLM()
     fake_ws, debriefs = run_session(
         monkeypatch,
-        [{"type": "USER_UTTERANCE", "text": "my answer"}, {"type": "INTERRUPT"}],
+        [AfterSent("AUDIO_FINISHED"), {"type": "USER_UTTERANCE", "text": "my answer"}, {"type": "INTERRUPT"}],
         llm,
     )
 
@@ -125,7 +157,7 @@ def test_ping_answered_while_turn_is_blocked(monkeypatch):
     llm = ScriptedLLM()
     fake_ws, debriefs = run_session(
         monkeypatch,
-        [{"type": "USER_UTTERANCE", "text": "my answer"}, {"type": "PING"}, WebSocketDisconnect()],
+        [AfterSent("AUDIO_FINISHED"), {"type": "USER_UTTERANCE", "text": "my answer"}, {"type": "PING"}, WebSocketDisconnect()],
         llm,
     )
 

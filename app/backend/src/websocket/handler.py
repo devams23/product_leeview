@@ -16,6 +16,7 @@ from state_machine.transitions import VALID_TRANSITIONS
 from metrics import SessionUsage, TurnMetrics
 from websocket.clock import timed_action
 from services.llm import create_llm_provider
+from services.llm.streaming import ReplyParser, interview_stream_instructions
 from services.deepgram import DeepgramTTSClient
 from services.supabase_client import (
     get_session,
@@ -69,17 +70,21 @@ DEBRIEF_COLUMNS = DEBRIEF_SCORE_KEYS + [
 ]
 
 
-def interview_schema(state: InterviewState) -> dict:
-    """Response schema for one turn: next_state may only be a legal move, or staying put."""
-    allowed = [
+def _allowed_states(state: InterviewState) -> list[str]:
+    """States a turn may move to: a legal move, or staying put (INTRO cannot stay put)."""
+    return [
         s.value for s in InterviewState
         if s in VALID_TRANSITIONS[state] or (s == state and state != InterviewState.INTRO)
     ]
+
+
+def interview_schema(state: InterviewState) -> dict:
+    """Response schema for one turn: next_state may only be a legal move, or staying put."""
     return {
         "type": "object",
         "properties": {
             "response_text": {"type": "string"},
-            "next_state": {"type": "string", "enum": allowed},
+            "next_state": {"type": "string", "enum": _allowed_states(state)},
         },
         "required": ["response_text", "next_state"],
         "additionalProperties": False,
@@ -215,18 +220,22 @@ def _elapsed_ms(since: float) -> int:
 
 def _turn_metrics(
     ctx: _InterviewContext, kind: str, state: InterviewState, t0: float, before: tuple[int, int, int],
-    llm_ms: int, speech: tuple[Optional[int], int] = (None, 0), error: Optional[str] = None,
+    llm_ms: int, *, first_token_ms: Optional[int] = None, tts_first_audio_ms: Optional[int] = None,
+    first_audio_ms: Optional[int] = None, tts_chars: int = 0, error: Optional[str] = None,
 ) -> TurnMetrics:
-    """One row per AI turn: time and characters for the LLM and TTS, and the tokens the LLM used."""
-    tts_first_audio_ms, tts_chars = speech
+    """One row per AI turn: time and characters for the LLM and TTS, and the tokens the LLM used.
+
+    first_audio_ms is measured from the turn's start to the first audio frame sent.
+    """
     after = ctx.llm.usage_snapshot()
     return TurnMetrics(
         turn_index=ctx.turn_index,
         state=state.value,
         kind=kind,
         llm_ms=llm_ms,
+        llm_first_token_ms=first_token_ms,
         tts_first_audio_ms=tts_first_audio_ms,
-        first_audio_ms=None if tts_first_audio_ms is None else llm_ms + tts_first_audio_ms,
+        first_audio_ms=first_audio_ms,
         total_ms=_elapsed_ms(t0),
         tts_chars=tts_chars,
         input_tokens=after[0] - before[0],
@@ -257,38 +266,187 @@ async def _save_session_usage(ctx: _InterviewContext):
     await _safe(upsert_session_usage, ctx.session_id, row)
 
 
-async def _speak(ctx: _InterviewContext, text: str, state: InterviewState) -> tuple[Optional[int], int]:
-    """Log and show an AI turn, then stream its audio.
+SILENCE_IN_HISTORY = "(listens quietly)"
 
-    Returns (ms from the TTS request to the first audio chunk, or None if none came; characters sent to TTS).
+
+async def _send_tts_failed(sid: str):
+    await _try_send(sid, {
+        "type": "ERROR",
+        "code": "TTS_FAILED",
+        "message": "The interviewer's voice failed to play.",
+    })
+
+
+class _TurnSpeech:
+    """What one turn says on its TTS socket: sentences go in, even-length audio frames come out.
+
+    A TTS failure is reported once and the turn carries on, so the text still reaches the transcript.
+    """
+
+    def __init__(self, sid: str, tts, t0: float):
+        self.sid = sid
+        self.tts = tts
+        self.t0 = t0
+        self.sentences: list[str] = []
+        self.speak_at: Optional[float] = None
+        self.tts_first_audio_ms: Optional[int] = None
+        self.first_audio_ms: Optional[int] = None
+        self.tts_failed = False
+
+    @property
+    def text(self) -> str:
+        return " ".join(self.sentences)
+
+    async def say(self, sentence: str):
+        self.sentences.append(sentence)
+        if self.speak_at is None:
+            self.speak_at = time.monotonic()
+        if not self.tts_failed:
+            try:
+                await self.tts.speak(sentence)
+            except Exception as e:
+                await self._fail(e)
+        await _try_send(self.sid, {"type": "AI_TEXT", "text": self.text})
+
+    async def play(self):
+        """Send the audio. An odd trailing byte waits for the next chunk, so every frame holds whole samples."""
+        carry = b""
+        try:
+            async for chunk in self.tts.audio():
+                data = carry + chunk
+                even = len(data) - len(data) % 2
+                carry = data[even:]
+                if not even:
+                    continue
+                if self.first_audio_ms is None:
+                    self.first_audio_ms = _elapsed_ms(self.t0)
+                    if self.speak_at is not None:
+                        self.tts_first_audio_ms = int((time.monotonic() - self.speak_at) * 1000)
+                await manager.send_bytes(self.sid, data[:even])
+        except Exception as e:
+            await self._fail(e)
+
+    async def _fail(self, e: Exception):
+        if not self.tts_failed:
+            self.tts_failed = True
+            logger.error(f"[{self.sid}] TTS failed: {e}")
+            await _send_tts_failed(self.sid)
+
+
+async def _stream_turn(
+    ctx: _InterviewContext, messages: list[dict], state: InterviewState, kind: str,
+) -> tuple[str, Optional[str]]:
+    """Stream one AI reply. Each sentence goes to TTS as soon as the model has written it, and the audio goes out as binary frames.
+
+    `messages` is the prompt without a reply-format rule; this adds the streaming format.
+    Returns (the spoken text, the next state as the reply named it). Records the turn's metrics,
+    and raises if the reply could not be made, so the caller can report it.
     """
     sid = ctx.session_id
-    _bg(log_transcript, ctx.token, sid, "AI", text, state.value)
-    await _try_send(sid, {"type": "AI_TEXT", "text": text})
+    t0 = time.monotonic()
+    before = ctx.llm.usage_snapshot()
+    allowed = _allowed_states(state)
+    silence_ok = state == InterviewState.AWAITING_CODE
+    stream_messages = _with_reply_format(messages, interview_stream_instructions(allowed, silence_ok))
+    parser = ReplyParser(allowed, state.value)
 
-    tts_first_audio_ms = None
+    speech: Optional[_TurnSpeech] = None
+    first_token_ms: Optional[int] = None
+    llm_ms: Optional[int] = None
+    stream_error: Optional[Exception] = None
+    state_applied = False
+    returned_state: Optional[str] = None
+
+    async def apply_state(name: Optional[str]):
+        transition = _apply_llm_transition(ctx.sm, name, sid)
+        if transition:
+            await _on_transition(ctx, *transition)
+
+    async def produce(tts):
+        nonlocal first_token_ms, llm_ms, stream_error, state_applied, returned_state
+        try:
+            try:
+                async for piece in ctx.llm.stream(stream_messages):
+                    if first_token_ms is None:
+                        first_token_ms = _elapsed_ms(t0)
+                    sentences = parser.feed(piece)
+                    # The state is applied before the first sentence is spoken, so the client hears the new phase.
+                    if not state_applied and parser.header_known:
+                        state_applied = True
+                        await apply_state(parser.state)
+                    for sentence in sentences:
+                        await speech.say(sentence)
+            except Exception as e:
+                stream_error = e
+                logger.error(f"[{sid}] LLM stream failed: {e}")
+
+            returned_state = parser.state
+            if stream_error is None:
+                remainder = parser.finish()
+                if not state_applied:
+                    state_applied = True
+                    await apply_state(parser.state)
+                for sentence in remainder:
+                    await speech.say(sentence)
+
+            # Nothing was spoken: silence is allowed only while the candidate is coding, anything else falls back.
+            if not speech.sentences and (stream_error is not None or not silence_ok):
+                logger.warning(f"[{sid}] Streamed reply was empty, falling back to structured output")
+                parsed = await ctx.llm.generate_structured(messages, interview_schema(state), max_attempts=1)
+                returned_state = parsed.get("next_state")
+                await apply_state(returned_state)
+                await speech.say(parsed["response_text"])
+        finally:
+            llm_ms = _elapsed_ms(t0)
+            await tts.end()
+
     try:
-        chunk_count = 0
-        tts_started = time.monotonic()
-        async for chunk in ctx.tts.stream_tts(text):
-            if tts_first_audio_ms is None:
-                tts_first_audio_ms = _elapsed_ms(tts_started)
-            chunk_count += 1
-            await manager.send_to_session(sid, {
-                "type": "AUDIO_CHUNK",
-                "data": chunk.hex(),
-            })
-        logger.info(f"[{sid}] TTS complete, sent {chunk_count} chunks")
+        async with ctx.tts.session() as tts:
+            speech = _TurnSpeech(sid, tts, t0)
+            producer = asyncio.create_task(produce(tts))
+            consumer = asyncio.create_task(speech.play())
+            try:
+                await asyncio.gather(producer, consumer)
+            finally:
+                # A failed producer must not leave the consumer waiting on audio that will never come.
+                for task in (producer, consumer):
+                    task.cancel()
+                await asyncio.gather(producer, consumer, return_exceptions=True)
     except Exception as e:
-        logger.error(f"[{sid}] TTS failed: {e}")
-        await _try_send(sid, {
-            "type": "ERROR",
-            "code": "TTS_FAILED",
-            "message": "The interviewer's voice failed to play.",
-        })
+        error_code = "LLM_FAILED" if speech is not None else "TTS_FAILED"
+        logger.error(f"[{sid}] {kind} turn failed ({error_code}): {e}")
+        await _record_turn(ctx, _turn_metrics(
+            ctx, kind, ctx.sm.current_state, t0, before, _elapsed_ms(t0), error=error_code,
+        ))
+        raise
 
+    text = speech.text
+    ctx.conversation_history.append({"role": "assistant", "content": text or SILENCE_IN_HISTORY})
+    final_state = ctx.sm.current_state
+    if text:
+        _bg(log_transcript, ctx.token, sid, "AI", text, final_state.value)
+        await _try_send(sid, {"type": "AI_TEXT", "text": text})
     await _try_send(sid, {"type": "AUDIO_FINISHED"})
-    return tts_first_audio_ms, len(text)
+
+    await _record_turn(ctx, _turn_metrics(
+        ctx, kind, final_state, t0, before, llm_ms,
+        first_token_ms=first_token_ms,
+        tts_first_audio_ms=speech.tts_first_audio_ms,
+        first_audio_ms=speech.first_audio_ms,
+        tts_chars=len(text),
+        error="LLM_STREAM_FAILED" if stream_error is not None else None,
+    ))
+    return text, returned_state
+
+
+def _with_reply_format(messages: list[dict], instructions: str) -> list[dict]:
+    """A copy of the prompt with the streaming reply format added to the system message."""
+    result = [dict(m) for m in messages]
+    if result and result[0]["role"] == "system":
+        result[0]["content"] = f"{result[0]['content']}\n\n{instructions}"
+    else:
+        result.insert(0, {"role": "system", "content": instructions})
+    return result
 
 
 async def send_intro(ctx: _InterviewContext):
@@ -297,31 +455,18 @@ async def send_intro(ctx: _InterviewContext):
     logger.info(f"[{sid}] Generating intro...")
     messages = build_interview_prompt(InterviewState.INTRO, ctx.problem_context, ctx.conversation_history, "", "")
 
-    t0 = time.monotonic()
-    before = ctx.llm.usage_snapshot()
     try:
-        parsed = await ctx.llm.generate_structured(messages, interview_schema(InterviewState.INTRO), max_attempts=2)
-        response_text = parsed["response_text"]
-        next_state_str = parsed.get("next_state")
+        await _stream_turn(ctx, messages, InterviewState.INTRO, "intro")
     except Exception as e:
         logger.error(f"[{sid}] Intro LLM call failed: {e}")
-        await _record_turn(ctx, _turn_metrics(ctx, "intro", ctx.sm.current_state, t0, before, _elapsed_ms(t0), error="LLM_FAILED"))
         await _try_send(sid, {"type": "ERROR", "code": "LLM_FAILED", "message": "The interviewer could not start. Please try again."})
         await _try_send(sid, {"type": "STATE_CHANGED", "state": ctx.sm.current_state.value})
         await _try_send(sid, {"type": "AUDIO_FINISHED"})
         return
-    llm_ms = _elapsed_ms(t0)
 
-    ctx.conversation_history.append({"role": "assistant", "content": response_text})
-
-    transition = _apply_llm_transition(ctx.sm, next_state_str, sid)
-    if transition:
-        await _on_transition(ctx, *transition)
-    else:
+    # A transition already sent STATE_CHANGED. Without one, the client still needs to hear the state.
+    if ctx.sm.current_state == InterviewState.INTRO:
         await _try_send(sid, {"type": "STATE_CHANGED", "state": ctx.sm.current_state.value})
-
-    speech = await _speak(ctx, response_text, ctx.sm.current_state)
-    await _record_turn(ctx, _turn_metrics(ctx, "intro", ctx.sm.current_state, t0, before, llm_ms, speech))
     logger.info(f"[{sid}] Intro complete, state: {ctx.sm.current_state}")
 
 
@@ -351,45 +496,40 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
     # Code is only sent with the newest message (build_interview_prompt); history keeps the words.
     ctx.conversation_history.append({"role": "user", "content": f"Candidate: {text}"})
 
-    t0 = time.monotonic()
-    before = ctx.llm.usage_snapshot()
     try:
-        parsed = await ctx.llm.generate_structured(messages, interview_schema(state_before), max_attempts=2)
-        response_text = parsed["response_text"]
-        next_state_str = parsed.get("next_state")
+        await _stream_turn(ctx, messages, state_before, "reply")
     except Exception as e:
         logger.error(f"[{sid}] LLM call failed: {e}")
-        await _record_turn(ctx, _turn_metrics(ctx, "reply", state_before, t0, before, _elapsed_ms(t0), error="LLM_FAILED"))
         await _try_send(sid, {"type": "ERROR", "code": "LLM_FAILED", "message": "The interviewer could not respond. Please try again."})
         await _try_send(sid, {"type": "AUDIO_FINISHED"})
-        return
-    llm_ms = _elapsed_ms(t0)
-
-    logger.info(f"[{sid}] LLM response: '{response_text[:100]}' next_state: {next_state_str}")
-
-    ctx.conversation_history.append({"role": "assistant", "content": response_text})
-
-    transition = _apply_llm_transition(ctx.sm, next_state_str, sid)
-    if transition:
-        await _on_transition(ctx, *transition)
-
-    speech = await _speak(ctx, response_text, ctx.sm.current_state)
-    await _record_turn(ctx, _turn_metrics(ctx, "reply", ctx.sm.current_state, t0, before, llm_ms, speech))
 
 
 async def _speak_fixed(ctx: _InterviewContext, text: str, state: InterviewState, kind: str):
-    """Speak a fixed line without an LLM call. It joins the transcript and gets its own metrics row."""
+    """Speak a fixed line through one TTS socket, without an LLM call. It joins the transcript and gets its own metrics row."""
+    sid = ctx.session_id
     t0 = time.monotonic()
     ctx.conversation_history.append({"role": "assistant", "content": text})
-    tts_first_audio_ms, tts_chars = await _speak(ctx, text, state)
+    speech: Optional[_TurnSpeech] = None
+    try:
+        async with ctx.tts.session() as tts:
+            speech = _TurnSpeech(sid, tts, t0)
+            await speech.say(text)
+            await tts.end()
+            await speech.play()
+    except Exception as e:
+        logger.error(f"[{sid}] Fixed line could not be spoken: {e}")
+        await _send_tts_failed(sid)
+
+    _bg(log_transcript, ctx.token, sid, "AI", text, state.value)
+    await _try_send(sid, {"type": "AUDIO_FINISHED"})
     await _record_turn(ctx, TurnMetrics(
         turn_index=ctx.turn_index,
         state=state.value,
         kind=kind,
-        tts_first_audio_ms=tts_first_audio_ms,
-        first_audio_ms=tts_first_audio_ms,
+        tts_first_audio_ms=speech.tts_first_audio_ms if speech else None,
+        first_audio_ms=speech.first_audio_ms if speech else None,
         total_ms=_elapsed_ms(t0),
-        tts_chars=tts_chars,
+        tts_chars=len(text),
     ))
 
 
@@ -409,27 +549,11 @@ async def _nudge_turn(ctx: _InterviewContext, idle_s: float):
     messages.append({"role": "user", "content": note})
     logger.info(f"[{sid}] Check-in after {int(idle_s)}s of silence (state: {state})")
 
-    t0 = time.monotonic()
-    before = ctx.llm.usage_snapshot()
     try:
-        parsed = await ctx.llm.generate_structured(messages, interview_schema(state), max_attempts=2)
-        response_text = parsed["response_text"]
-        next_state_str = parsed.get("next_state")
+        await _stream_turn(ctx, messages, state, "nudge")
     except Exception as e:
         # A missed check-in is harmless: the candidate is simply left to think.
         logger.error(f"[{sid}] Check-in LLM call failed: {e}")
-        await _record_turn(ctx, _turn_metrics(ctx, "nudge", state, t0, before, _elapsed_ms(t0), error="LLM_FAILED"))
-        return
-    llm_ms = _elapsed_ms(t0)
-
-    ctx.conversation_history.append({"role": "assistant", "content": response_text})
-
-    transition = _apply_llm_transition(ctx.sm, next_state_str, sid)
-    if transition:
-        await _on_transition(ctx, *transition)
-
-    speech = await _speak(ctx, response_text, ctx.sm.current_state)
-    await _record_turn(ctx, _turn_metrics(ctx, "nudge", ctx.sm.current_state, t0, before, llm_ms, speech))
 
 
 async def _timed_turn(ctx: _InterviewContext, action: str, idle_s: float):
@@ -667,8 +791,7 @@ def build_interview_prompt(state: InterviewState, problem_context: dict, convers
         f"Current phase: {state.value}. "
         f"{PHASE_GUIDE.get(state, '')}\n"
         f"Respond naturally as an interviewer. Keep your responses conversational and concise. "
-        f"'response_text' is what you say: it is read aloud, so use plain spoken words with no markdown, "
-        f"LaTeX or code. 'next_state' is the phase the interview is in after this reply.\n\n"
+        f"What you say is read aloud, so use plain spoken words with no markdown, LaTeX or code.\n\n"
         f"--- PROBLEM CONTEXT ---\n"
         f"Title: {problem_context.get('title')}\n"
         f"Difficulty: {problem_context.get('difficulty')}\n"

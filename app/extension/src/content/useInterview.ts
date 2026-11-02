@@ -38,15 +38,6 @@ const STAGES: ReadonlySet<string> = new Set<string>([
 type TimerKey = "flush" | "drain" | "elapsed" | "keepAlive" | "level" | "debrief" | "calm"
   | "watchdog" | "slow" | "heartbeat";
 
-function hexToBytes(hexData: string): Uint8Array {
-  const cleanHex = hexData.replace(/[^0-9a-fA-F]/g, "");
-  const bytes = new Uint8Array(Math.floor(cleanHex.length / 2));
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(cleanHex.substr(i * 2, 2), 16);
-  }
-  return bytes;
-}
-
 function joinText(a: string, b: string): string {
   return [a.trim(), b.trim()].filter(Boolean).join(" ");
 }
@@ -330,14 +321,13 @@ export function useInterview(auth: AuthState): {
 
   // ---- speech out --------------------------------------------------------
 
-  function playChunk(hex: string) {
+  function playChunk(pcm: ArrayBuffer) {
     const ctx = playCtxRef.current;
     if (!ctx || ctx.state === "closed") return;
 
-    const bytes = hexToBytes(hex);
-    const sampleCount = Math.floor(bytes.byteLength / 2);
+    const sampleCount = pcm.byteLength >> 1;
     if (sampleCount === 0) return;
-    const int16 = new Int16Array(bytes.buffer, 0, sampleCount);
+    const int16 = new Int16Array(pcm, 0, sampleCount);
 
     const float32 = new Float32Array(sampleCount);
     for (let i = 0; i < sampleCount; i++) {
@@ -378,7 +368,7 @@ export function useInterview(auth: AuthState): {
         clearTimer("drain");
         if (p !== "AI_SPEAKING") applyPhase("AI_SPEAKING");
         else armWatchdog("AI_SPEAKING"); // audio is still flowing: restart the stall timer
-        playChunk(String(msg.data ?? ""));
+        playChunk(msg.pcm);
         return;
       }
 

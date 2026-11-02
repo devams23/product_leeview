@@ -91,6 +91,11 @@ class ReplyParser:
         self._spoken = ""
         self._sentence = ""
 
+    @property
+    def header_known(self) -> bool:
+        """True once the STATE line (or the lack of one) has been read, so .state is final."""
+        return self._header_done
+
     def feed(self, text: str) -> list[str]:
         if self._header_done:
             return self._speak(text)

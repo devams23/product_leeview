@@ -20,6 +20,7 @@ export class InterviewWebSocket {
         `${WS_URL}/ws/interview/${encodeURIComponent(sessionId)}?token=${encodeURIComponent(token)}`,
       );
       this.ws = ws;
+      ws.binaryType = "arraybuffer";
       let opened = false;
 
       ws.onopen = () => {
@@ -28,6 +29,11 @@ export class InterviewWebSocket {
       };
       ws.onmessage = (event) => {
         try {
+          // Binary frames are raw PCM audio; JSON frames are everything else.
+          if (event.data instanceof ArrayBuffer) {
+            onMessage({ type: "AUDIO_CHUNK", pcm: event.data });
+            return;
+          }
           onMessage(JSON.parse(event.data));
         } catch (e) {
           console.error("[LeeView] WS message error:", e);
