@@ -14,10 +14,11 @@ from services.llm.base import LLMProvider
 
 
 class AfterSent:
-    """Marker: the next client message is delivered only once the server has sent a message of this type."""
+    """Marker: the next client message is delivered only once the server has sent `count` messages of this type."""
 
-    def __init__(self, msg_type):
+    def __init__(self, msg_type, count=1):
         self.msg_type = msg_type
+        self.count = count
 
 
 class FakeWebSocket:
@@ -32,7 +33,7 @@ class FakeWebSocket:
     async def receive_json(self):
         item = await self.queue.get()
         if isinstance(item, AfterSent):
-            while not any(m.get("type") == item.msg_type for m in self.sent):
+            while sum(1 for m in self.sent if m.get("type") == item.msg_type) < item.count:
                 await asyncio.sleep(0.001)
             item = await self.queue.get()
         if isinstance(item, WebSocketDisconnect):
@@ -74,6 +75,30 @@ class ScriptedLLM(LLMProvider):
 
     def usage_snapshot(self):
         return (0, 0, 0)
+
+
+class InstantLLM(LLMProvider):
+    """Every reply finishes at once. Records whether the client was closed."""
+
+    def __init__(self):
+        self.closed = False
+        self.last_attempts = 1
+
+    @property
+    def provider_name(self):
+        return "fake"
+
+    async def generate(self, messages, temperature=0.7, response_format=None, max_tokens=1024):
+        raise AssertionError("the interview turns use stream")
+
+    async def stream(self, messages, temperature=0.6, max_tokens=400):
+        yield "STATE: AWAITING_CLARIFICATION\nThat makes sense. "
+
+    def usage_snapshot(self):
+        return (0, 0, 0)
+
+    async def aclose(self):
+        self.closed = True
 
 
 class FakeTTSSession:
@@ -178,3 +203,33 @@ def test_cap_speaks_closing_line_and_runs_debrief(monkeypatch):
     assert llm.calls == 1  # only the intro; the cap line is fixed text
     spoken = [m["text"] for m in fake_ws.sent if m.get("type") == "AI_TEXT"]
     assert spoken[-1] == handler.CAP_TEXT
+
+
+def test_dropped_after_three_turns_runs_debrief(monkeypatch):
+    llm = InstantLLM()
+    fake_ws, debriefs = run_session(
+        monkeypatch,
+        [
+            AfterSent("AUDIO_FINISHED", 1), {"type": "USER_UTTERANCE", "text": "one"},
+            AfterSent("AUDIO_FINISHED", 2), {"type": "USER_UTTERANCE", "text": "two"},
+            AfterSent("AUDIO_FINISHED", 3), {"type": "USER_UTTERANCE", "text": "three"},
+            AfterSent("AUDIO_FINISHED", 4), WebSocketDisconnect(),
+        ],
+        llm,
+    )
+
+    assert len(debriefs) == 1
+    assert debriefs[0].user_turns == 3
+    assert llm.closed
+
+
+def test_dropped_after_one_turn_skips_debrief(monkeypatch):
+    llm = InstantLLM()
+    fake_ws, debriefs = run_session(
+        monkeypatch,
+        [AfterSent("AUDIO_FINISHED", 1), {"type": "USER_UTTERANCE", "text": "one"}, AfterSent("AUDIO_FINISHED", 2), WebSocketDisconnect()],
+        llm,
+    )
+
+    assert debriefs == []
+    assert llm.closed

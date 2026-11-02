@@ -117,6 +117,9 @@ class _InterviewContext:
 # How often the receive loop wakes with no message, for timed checks.
 CLOCK_TICK_S = 5.0
 
+# A dropped interview gets a debrief only once the candidate has answered this many times.
+MIN_TURNS_FOR_DEBRIEF = 3
+
 WARN_TEXT = "Quick heads-up: we have about five minutes left."
 CAP_TEXT = "We're at time, so let's stop here. I'll put together your feedback now."
 
@@ -766,6 +769,12 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str, toke
             update_session, token, session_id,
             status="INTERRUPTED", completed_at=_now_iso(), total_duration_seconds=_duration_seconds(ctx),
         )
+        if ctx.user_turns >= MIN_TURNS_FOR_DEBRIEF:
+            # The socket is gone, so the debrief's sends go nowhere. On success it sets the final status.
+            try:
+                await _run_debrief(ctx)
+            except Exception as e:
+                logger.error(f"[{session_id}] Debrief after disconnect failed: {e}", exc_info=True)
         await _save_session_usage(ctx)
         await _close_llm(llm)
         return
