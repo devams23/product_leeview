@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import type { AuthState, Caption, Debrief, InterviewError, Phase, Stage } from "../types";
 import { InterviewWebSocket, createSession } from "../services/websocket";
 import { DeepgramSTT } from "../services/deepgramStt";
+import { DeepgramFluxSTT } from "../services/fluxStt";
+import type { SttCallbacks, SttClient } from "../services/stt";
+import { DEEPGRAM_API_KEY } from "../env";
 import { makeError, toInterviewError } from "../services/errors";
 import { getProblemData, slugFromPath } from "../utils/domScraper";
 import { IntroGate, MIN_CALM_MS } from "./introGate";
@@ -19,6 +22,12 @@ const PLAYBACK_PREBUFFER_S = 0.12;
 // Silence after the last final segment before the utterance is sent (spec §5).
 const FLUSH_DELAY_MS = 1200;
 const KEEPALIVE_MS = 5000;
+// Audio chunk size sent to STT; small enough that a turn's end is noticed quickly.
+const RECORDER_TIMESLICE_MS = 100;
+// Candidate-activity pings to the backend, so its idle check-ins don't cut in mid-sentence.
+const ACTIVITY_MS = 2000;
+// Across the whole interview, not per drop.
+const STT_RECONNECT_LIMIT = 3;
 const ELAPSED_TICK_MS = 1000;
 const LEVEL_TICK_MS = 50;
 const DRAIN_PADDING_MS = 150;
@@ -37,6 +46,10 @@ const STAGES: ReadonlySet<string> = new Set<string>([
 
 type TimerKey = "flush" | "drain" | "elapsed" | "keepAlive" | "level" | "debrief" | "calm"
   | "watchdog" | "slow" | "heartbeat";
+
+type SttKind = "flux" | "nova";
+/** Holds the client once connected, so its close callback can tell whether it is still current. */
+type SttConnection = { client: SttClient | null };
 
 function joinText(a: string, b: string): string {
   return [a.trim(), b.trim()].filter(Boolean).join(" ");
@@ -87,7 +100,10 @@ export function useInterview(auth: AuthState): {
   const wsRef = useRef<InterviewWebSocket | null>(null);
   // Holds the opening audio until the calm screen has been shown for MIN_CALM_MS.
   const gateRef = useRef<IntroGate<any> | null>(null);
-  const sttRef = useRef<DeepgramSTT | null>(null);
+  const sttRef = useRef<SttClient | null>(null);
+  const sttKindRef = useRef<SttKind>("flux");
+  const sttReconnectsRef = useRef(0);
+  const lastActivityRef = useRef(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -114,8 +130,10 @@ export function useInterview(auth: AuthState): {
     const sending = phaseRef.current === "LISTENING" && !mutedRef.current;
     if (sending) sttRef.current?.resume();
     else sttRef.current?.pause();
+    // Flux gets audio even while paused, so the calm opening also mutes the mic itself.
+    const micOn = !mutedRef.current && phaseRef.current !== "PREPARING";
     streamRef.current?.getAudioTracks().forEach((track) => {
-      track.enabled = !mutedRef.current;
+      track.enabled = micOn;
     });
   }
 
@@ -204,20 +222,23 @@ export function useInterview(auth: AuthState): {
     if (ctx && ctx.state !== "closed") ctx.close().catch(() => {});
   }
 
-  function teardownMedia() {
+  function stopRecorder() {
     const recorder = recorderRef.current;
     recorderRef.current = null;
-    if (recorder) {
-      recorder.ondataavailable = null;
-      recorder.onerror = null;
-      if (recorder.state !== "inactive") {
-        try {
-          recorder.stop();
-        } catch {
-          // already stopped
-        }
+    if (!recorder) return;
+    recorder.ondataavailable = null;
+    recorder.onerror = null;
+    if (recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        // already stopped
       }
     }
+  }
+
+  function teardownMedia() {
+    stopRecorder();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
 
@@ -297,6 +318,7 @@ export function useInterview(auth: AuthState): {
       interimRef.current = "";
     } else {
       interimRef.current = t;
+      noteActivity();
     }
     setUserCaption({
       speaker: "USER",
@@ -317,6 +339,16 @@ export function useInterview(auth: AuthState): {
 
   function onSpeechStarted() {
     clearTimer("flush");
+    noteActivity();
+  }
+
+  /** Tells the backend the candidate is still talking, at most once per ACTIVITY_MS. */
+  function noteActivity() {
+    if (phaseRef.current !== "LISTENING") return;
+    const now = Date.now();
+    if (now - lastActivityRef.current < ACTIVITY_MS) return;
+    lastActivityRef.current = now;
+    wsRef.current?.send({ type: "ACTIVITY" });
   }
 
   // ---- speech out --------------------------------------------------------
@@ -405,6 +437,7 @@ export function useInterview(auth: AuthState): {
       case "STATE_CHANGED":
         if (typeof msg.state === "string" && STAGES.has(msg.state)) {
           setStage(msg.state as Stage);
+          sttRef.current?.configure(msg.state as Stage);
         }
         return;
 
@@ -501,14 +534,87 @@ export function useInterview(auth: AuthState): {
     setVoiceLevel((prev) => (Math.abs(prev - next) < 0.02 ? prev : next));
   }
 
-  function startRecorder(stream: MediaStream, stt: DeepgramSTT) {
+  function startRecorder(stream: MediaStream, stt: SttClient) {
+    stopRecorder();
     const options = MediaRecorder.isTypeSupported("audio/webm") ? { mimeType: "audio/webm" } : undefined;
     const recorder = new MediaRecorder(stream, options);
     recorderRef.current = recorder;
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0 && sttRef.current === stt) stt.sendAudio(event.data);
     };
-    recorder.start(250);
+    // A new recorder writes a fresh WebM header, which a new socket needs before any audio.
+    recorder.start(RECORDER_TIMESLICE_MS);
+  }
+
+  // ---- speech-to-text connection -----------------------------------------
+
+  function sttCallbacks(gen: number, conn: SttConnection): SttCallbacks {
+    return {
+      onTranscript,
+      onUtteranceEnd,
+      onSpeechStarted,
+      onClose: () => handleSttClose(gen, conn),
+    };
+  }
+
+  /** Flux first; Nova-3 only when Flux fails to connect at all. Reconnects keep the same class. */
+  async function connectStt(
+    callbacks: SttCallbacks,
+    kind: SttKind,
+  ): Promise<{ client: SttClient; kind: SttKind }> {
+    if (kind === "nova") {
+      const nova = new DeepgramSTT();
+      await nova.connect(callbacks);
+      return { client: nova, kind: "nova" };
+    }
+    const flux = new DeepgramFluxSTT(DEEPGRAM_API_KEY);
+    try {
+      await flux.connect(callbacks);
+      return { client: flux, kind: "flux" };
+    } catch {
+      console.warn("[LeeView] Flux unavailable, using Nova-3");
+      const nova = new DeepgramSTT();
+      await nova.connect(callbacks);
+      return { client: nova, kind: "nova" };
+    }
+  }
+
+  function needsStt(p: Phase): boolean {
+    return p === "PREPARING" || LIVE_PHASES.has(p);
+  }
+
+  function handleSttClose(gen: number, conn: SttConnection) {
+    if (gen !== generationRef.current || !conn.client || sttRef.current !== conn.client) return;
+    sttRef.current = null;
+    stopRecorder();
+    if (needsStt(phaseRef.current)) void reconnectStt(gen);
+  }
+
+  /** Retries a dropped STT socket with a fresh recorder, until the interview's budget runs out. */
+  async function reconnectStt(gen: number) {
+    while (gen === generationRef.current && sttReconnectsRef.current < STT_RECONNECT_LIMIT) {
+      sttReconnectsRef.current += 1;
+      const conn: SttConnection = { client: null };
+      try {
+        const { client, kind } = await connectStt(sttCallbacks(gen, conn), sttKindRef.current);
+        const stream = streamRef.current;
+        if (gen !== generationRef.current || !stream || !needsStt(phaseRef.current)) {
+          client.disconnect();
+          return;
+        }
+        conn.client = client;
+        sttRef.current = client;
+        sttKindRef.current = kind;
+        syncSending();
+        startRecorder(stream, client);
+        return;
+      } catch {
+        // Try again while the budget lasts.
+      }
+    }
+    if (gen === generationRef.current && needsStt(phaseRef.current)) {
+      fail(makeError("STT_FAILED"));
+    }
   }
 
   // ---- public API --------------------------------------------------------
@@ -539,6 +645,8 @@ export function useInterview(auth: AuthState): {
     const isStale = () => gen !== generationRef.current;
 
     slugRef.current = slugFromPath(window.location.pathname);
+    sttReconnectsRef.current = 0;
+    sttKindRef.current = "flux";
     setDebrief(null);
     setSessionId(null);
     setError(null);
@@ -641,23 +749,16 @@ export function useInterview(auth: AuthState): {
         gate.open().forEach(handleServerMessage);
       }, MIN_CALM_MS);
 
-      const stt = new DeepgramSTT();
-      await stt.connect({
-        onTranscript,
-        onUtteranceEnd,
-        onSpeechStarted,
-        onClose: () => {
-          if (sttRef.current !== stt) return;
-          sttRef.current = null;
-          if (LIVE_PHASES.has(phaseRef.current)) fail(makeError("STT_FAILED"));
-        },
-      });
+      const conn: SttConnection = { client: null };
+      const { client: stt, kind } = await connectStt(sttCallbacks(gen, conn), "flux");
       if (isStale()) {
         stt.disconnect();
         return;
       }
 
+      conn.client = stt;
       sttRef.current = stt;
+      sttKindRef.current = kind;
       syncSending();
       startRecorder(stream, stt);
       setTimer("keepAlive", () => sttRef.current?.keepAlive(), KEEPALIVE_MS, true);
