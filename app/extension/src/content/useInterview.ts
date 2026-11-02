@@ -5,8 +5,17 @@ import { DeepgramSTT } from "../services/deepgramStt";
 import { makeError, toInterviewError } from "../services/errors";
 import { getProblemData, slugFromPath } from "../utils/domScraper";
 import { IntroGate, MIN_CALM_MS } from "./introGate";
+import {
+  HEARTBEAT_MS,
+  SERVER_SILENCE_MS,
+  SPEAKING_STALL_MS,
+  THINKING_SLOW_MS,
+  watchdogDelay,
+} from "./watchdog";
 
 const PLAYBACK_SAMPLE_RATE = 24000;
+// Audio scheduled this far ahead of "now" so the first chunks don't underrun.
+const PLAYBACK_PREBUFFER_S = 0.12;
 // Silence after the last final segment before the utterance is sent (spec §5).
 const FLUSH_DELAY_MS = 1200;
 const KEEPALIVE_MS = 5000;
@@ -25,7 +34,8 @@ const STAGES: ReadonlySet<string> = new Set<string>([
   "AWAITING_WALKTHROUGH", "CONCLUDING", "GENERATING_DEBRIEF", "COMPLETED",
 ]);
 
-type TimerKey = "flush" | "drain" | "elapsed" | "keepAlive" | "level" | "debrief" | "calm";
+type TimerKey = "flush" | "drain" | "elapsed" | "keepAlive" | "level" | "debrief" | "calm"
+  | "watchdog" | "slow" | "heartbeat";
 
 function hexToBytes(hexData: string): Uint8Array {
   const cleanHex = hexData.replace(/[^0-9a-fA-F]/g, "");
@@ -58,6 +68,7 @@ export function useInterview(auth: AuthState): {
   muted: boolean; toggleMute(): void;
   aiCaption: Caption | null; userCaption: Caption | null;
   debrief: Debrief | null; sessionId: string | null; error: InterviewError | null;
+  slow: boolean; // the interviewer has been thinking for a while
   start(): Promise<void>; end(): void; reset(): void; // reset -> IDLE, full cleanup
 } {
   const [phase, setPhaseState] = useState<Phase>("IDLE");
@@ -70,8 +81,11 @@ export function useInterview(auth: AuthState): {
   const [debrief, setDebrief] = useState<Debrief | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<InterviewError | null>(null);
+  const [slow, setSlow] = useState(false);
 
   const phaseRef = useRef<Phase>("IDLE");
+  // Time of the last message from the server, including PONG; drives the dead-socket check.
+  const lastServerMsgRef = useRef(0);
   const mutedRef = useRef(false);
   const authRef = useRef(auth);
   authRef.current = auth;
@@ -123,7 +137,28 @@ export function useInterview(auth: AuthState): {
       clearTimer("flush");
       setUserCaption((c) => (c && c.final ? c : null));
     }
+    clearTimer("slow");
+    setSlow(false);
+    armWatchdog(next);
+    if (next === "THINKING") setTimer("slow", () => setSlow(true), THINKING_SLOW_MS);
     syncSending();
+  }
+
+  /** Arms the phase's watchdog, or clears it for phases that have none. */
+  function armWatchdog(phase: Phase) {
+    clearTimer("watchdog");
+    const delay = watchdogDelay(phase);
+    if (delay === null) return;
+    setTimer("watchdog", () => onWatchdog(phase), delay);
+  }
+
+  /** A phase outlived its timeout: apologise, stop the audio, and hand the floor back. */
+  function onWatchdog(expected: Phase) {
+    if (phaseRef.current !== expected) return;
+    clearTimer("drain");
+    setAiCaption({ speaker: "AI", text: SORRY_TEXT, final: true });
+    stopSources();
+    applyPhase("LISTENING");
   }
 
   // ---- timers ------------------------------------------------------------
@@ -152,7 +187,8 @@ export function useInterview(auth: AuthState): {
 
   // ---- teardown ----------------------------------------------------------
 
-  function stopPlayback() {
+  /** Stops queued and playing audio but keeps the playback context alive. */
+  function stopSources() {
     sourcesRef.current.forEach((source) => {
       try {
         source.onended = null;
@@ -164,6 +200,10 @@ export function useInterview(auth: AuthState): {
     });
     sourcesRef.current.clear();
     nextPlayTimeRef.current = 0;
+  }
+
+  function stopPlayback() {
+    stopSources();
     const ctx = playCtxRef.current;
     playCtxRef.current = null;
     playAnalyserRef.current = null;
@@ -309,7 +349,7 @@ export function useInterview(auth: AuthState): {
     source.connect(playAnalyserRef.current ?? ctx.destination);
 
     const now = ctx.currentTime;
-    if (nextPlayTimeRef.current < now) nextPlayTimeRef.current = now + 0.05;
+    if (nextPlayTimeRef.current < now) nextPlayTimeRef.current = now + PLAYBACK_PREBUFFER_S;
     source.start(nextPlayTimeRef.current);
     nextPlayTimeRef.current += buffer.duration;
 
@@ -334,12 +374,14 @@ export function useInterview(auth: AuthState): {
         if (!AUDIO_PHASES.has(p)) return;
         clearTimer("drain");
         if (p !== "AI_SPEAKING") applyPhase("AI_SPEAKING");
+        else armWatchdog("AI_SPEAKING"); // audio is still flowing: restart the stall timer
         playChunk(String(msg.data ?? ""));
         return;
       }
 
       case "AUDIO_FINISHED": {
         clearTimer("drain");
+        clearTimer("watchdog");
         const p = phaseRef.current;
         if (p === "THINKING" || p === "PREPARING") {
           // Turn ended without audio (e.g. LLM failure, or an opening that had none): hand the floor back.
@@ -418,6 +460,17 @@ export function useInterview(auth: AuthState): {
     }
   }
 
+  // ---- heartbeat ---------------------------------------------------------
+
+  function heartbeatTick() {
+    wsRef.current?.send({ type: "PING" });
+    const p = phaseRef.current;
+    const awaitingServer = LIVE_PHASES.has(p) || p === "PREPARING";
+    if (awaitingServer && Date.now() - lastServerMsgRef.current > SERVER_SILENCE_MS) {
+      fail(makeError("CONNECTION_LOST"));
+    }
+  }
+
   // ---- mic ---------------------------------------------------------------
 
   function startLevelMeter(stream: MediaStream) {
@@ -481,6 +534,7 @@ export function useInterview(auth: AuthState): {
     setDebrief(null);
     setSessionId(null);
     setError(null);
+    setSlow(false);
   }
 
   async function start(): Promise<void> {
@@ -495,6 +549,7 @@ export function useInterview(auth: AuthState): {
     setDebrief(null);
     setSessionId(null);
     setError(null);
+    setSlow(false);
     setAiCaption(null);
     setUserCaption(null);
     setStage(null);
@@ -578,12 +633,15 @@ export function useInterview(auth: AuthState): {
         newSessionId,
         token,
         (msg) => {
+          lastServerMsgRef.current = Date.now();
           if (!gateRef.current?.offer(msg)) handleServerMessage(msg);
         },
         () => handleSocketClose(ws),
       );
       if (isStale()) return;
 
+      lastServerMsgRef.current = Date.now();
+      setTimer("heartbeat", heartbeatTick, HEARTBEAT_MS, true);
       applyPhase("PREPARING");
       setTimer("calm", () => {
         if (isStale()) return;
@@ -678,6 +736,7 @@ export function useInterview(auth: AuthState): {
     debrief,
     sessionId,
     error,
+    slow,
     start,
     end,
     reset,

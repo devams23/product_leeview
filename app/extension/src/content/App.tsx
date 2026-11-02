@@ -47,7 +47,7 @@ export default function App() {
 
   const {
     phase, stage, elapsedSeconds, voiceLevel, muted, toggleMute,
-    debrief, sessionId, error, start, end, reset,
+    debrief, sessionId, error, slow, start, end, reset,
   } = interview;
   const live = LIVE_PHASES.has(phase);
 
@@ -134,6 +134,7 @@ export default function App() {
         elapsedSeconds={elapsedSeconds}
         voiceLevel={voiceLevel}
         muted={muted}
+        slow={slow}
         onToggleMute={toggleMute}
         onEnd={end}
       />
