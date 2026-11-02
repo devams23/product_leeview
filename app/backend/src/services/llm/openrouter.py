@@ -51,4 +51,5 @@ class OpenRouterProvider(LLMProvider):
             )
             response.raise_for_status()
             data = response.json()
+            self.record_usage(data.get("usage"))
             return data["choices"][0]["message"].get("content") or ""

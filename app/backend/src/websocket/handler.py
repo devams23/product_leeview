@@ -2,16 +2,18 @@ import asyncio
 import json
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from config import get_settings
 from websocket.manager import manager
 from state_machine.machine import StateMachine
 from state_machine.states import InterviewState
 from state_machine.transitions import VALID_TRANSITIONS
+from metrics import SessionUsage, TurnMetrics
 from services.llm import create_llm_provider
 from services.deepgram import DeepgramTTSClient
 from services.supabase_client import (
@@ -20,7 +22,9 @@ from services.supabase_client import (
     log_transcript,
     save_code_snapshot,
     save_debrief,
+    save_turn_metrics,
     update_session,
+    upsert_session_usage,
 )
 from debrief.engine import DebriefEngine
 
@@ -95,6 +99,8 @@ class _InterviewContext:
     transitions: list = field(default_factory=list)  # (from_state, to_state, triggered_by)
     started_at: float = field(default_factory=time.monotonic)
     stage_entries: list = field(default_factory=list)  # (state, monotonic time it was entered)
+    usage: SessionUsage = field(default_factory=SessionUsage)
+    turn_index: int = 0
 
 
 async def _safe(fn, *args, **kwargs):
@@ -171,15 +177,70 @@ def _apply_llm_transition(sm: StateMachine, next_state_str: Optional[str], sessi
     return from_state, sm.current_state, "LLM_SUGGESTION"
 
 
-async def _speak(ctx: _InterviewContext, text: str, state: InterviewState):
-    """Log and show an AI turn, then stream its audio."""
+def _elapsed_ms(since: float) -> int:
+    return int((time.monotonic() - since) * 1000)
+
+
+def _turn_metrics(
+    ctx: _InterviewContext, kind: str, state: InterviewState, t0: float, before: tuple[int, int, int],
+    llm_ms: int, speech: tuple[Optional[int], int] = (None, 0), error: Optional[str] = None,
+) -> TurnMetrics:
+    """One row per AI turn: time and characters for the LLM and TTS, and the tokens the LLM used."""
+    tts_first_audio_ms, tts_chars = speech
+    after = ctx.llm.usage_snapshot()
+    return TurnMetrics(
+        turn_index=ctx.turn_index,
+        state=state.value,
+        kind=kind,
+        llm_ms=llm_ms,
+        tts_first_audio_ms=tts_first_audio_ms,
+        first_audio_ms=None if tts_first_audio_ms is None else llm_ms + tts_first_audio_ms,
+        total_ms=_elapsed_ms(t0),
+        tts_chars=tts_chars,
+        input_tokens=after[0] - before[0],
+        output_tokens=after[1] - before[1],
+        llm_attempts=ctx.llm.last_attempts,
+        error=error,
+    )
+
+
+async def _record_turn(ctx: _InterviewContext, m: TurnMetrics):
+    ctx.usage.add_turn(m)
+    ctx.turn_index += 1
+    logger.info("turn_metrics %s", json.dumps(asdict(m)))
+    await _safe(save_turn_metrics, ctx.session_id, asdict(m))
+
+
+async def _save_session_usage(ctx: _InterviewContext):
+    """Upsert the session's totals. The mic stream is open for the whole session, so its length stands in for STT time."""
+    settings = get_settings()
+    stt_seconds = _duration_seconds(ctx)
+    row = {
+        **asdict(ctx.usage),
+        "stt_seconds": stt_seconds,
+        "cost_usd": ctx.usage.cost_usd(
+            stt_seconds, settings.llm_input_price_per_mtok, settings.llm_output_price_per_mtok,
+        ),
+    }
+    await _safe(upsert_session_usage, ctx.session_id, row)
+
+
+async def _speak(ctx: _InterviewContext, text: str, state: InterviewState) -> tuple[Optional[int], int]:
+    """Log and show an AI turn, then stream its audio.
+
+    Returns (ms from the TTS request to the first audio chunk, or None if none came; characters sent to TTS).
+    """
     sid = ctx.session_id
     await _safe(log_transcript, ctx.token, sid, "AI", text, state.value)
     await _try_send(sid, {"type": "AI_TEXT", "text": text})
 
+    tts_first_audio_ms = None
     try:
         chunk_count = 0
+        tts_started = time.monotonic()
         async for chunk in ctx.tts.stream_tts(text):
+            if tts_first_audio_ms is None:
+                tts_first_audio_ms = _elapsed_ms(tts_started)
             chunk_count += 1
             await manager.send_to_session(sid, {
                 "type": "AUDIO_CHUNK",
@@ -195,6 +256,7 @@ async def _speak(ctx: _InterviewContext, text: str, state: InterviewState):
         })
 
     await _try_send(sid, {"type": "AUDIO_FINISHED"})
+    return tts_first_audio_ms, len(text)
 
 
 async def send_intro(ctx: _InterviewContext):
@@ -203,16 +265,20 @@ async def send_intro(ctx: _InterviewContext):
     logger.info(f"[{sid}] Generating intro...")
     messages = build_interview_prompt(InterviewState.INTRO, ctx.problem_context, ctx.conversation_history, "", "")
 
+    t0 = time.monotonic()
+    before = ctx.llm.usage_snapshot()
     try:
         parsed = await ctx.llm.generate_structured(messages, interview_schema(InterviewState.INTRO))
         response_text = parsed["response_text"]
         next_state_str = parsed.get("next_state")
     except Exception as e:
         logger.error(f"[{sid}] Intro LLM call failed: {e}")
+        await _record_turn(ctx, _turn_metrics(ctx, "intro", ctx.sm.current_state, t0, before, _elapsed_ms(t0), error="LLM_FAILED"))
         await _try_send(sid, {"type": "ERROR", "code": "LLM_FAILED", "message": "The interviewer could not start. Please try again."})
         await _try_send(sid, {"type": "STATE_CHANGED", "state": ctx.sm.current_state.value})
         await _try_send(sid, {"type": "AUDIO_FINISHED"})
         return
+    llm_ms = _elapsed_ms(t0)
 
     ctx.conversation_history.append({"role": "assistant", "content": response_text})
 
@@ -222,7 +288,8 @@ async def send_intro(ctx: _InterviewContext):
     else:
         await _try_send(sid, {"type": "STATE_CHANGED", "state": ctx.sm.current_state.value})
 
-    await _speak(ctx, response_text, ctx.sm.current_state)
+    speech = await _speak(ctx, response_text, ctx.sm.current_state)
+    await _record_turn(ctx, _turn_metrics(ctx, "intro", ctx.sm.current_state, t0, before, llm_ms, speech))
     logger.info(f"[{sid}] Intro complete, state: {ctx.sm.current_state}")
 
 
@@ -252,15 +319,19 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
         user_msg_content += f"\n\n[Code Snapshot]:\n{current_code}"
     ctx.conversation_history.append({"role": "user", "content": user_msg_content})
 
+    t0 = time.monotonic()
+    before = ctx.llm.usage_snapshot()
     try:
         parsed = await ctx.llm.generate_structured(messages, interview_schema(state_before))
         response_text = parsed["response_text"]
         next_state_str = parsed.get("next_state")
     except Exception as e:
         logger.error(f"[{sid}] LLM call failed: {e}")
+        await _record_turn(ctx, _turn_metrics(ctx, "reply", state_before, t0, before, _elapsed_ms(t0), error="LLM_FAILED"))
         await _try_send(sid, {"type": "ERROR", "code": "LLM_FAILED", "message": "The interviewer could not respond. Please try again."})
         await _try_send(sid, {"type": "AUDIO_FINISHED"})
         return
+    llm_ms = _elapsed_ms(t0)
 
     logger.info(f"[{sid}] LLM response: '{response_text[:100]}' next_state: {next_state_str}")
 
@@ -270,7 +341,8 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
     if transition:
         await _on_transition(ctx, *transition)
 
-    await _speak(ctx, response_text, ctx.sm.current_state)
+    speech = await _speak(ctx, response_text, ctx.sm.current_state)
+    await _record_turn(ctx, _turn_metrics(ctx, "reply", ctx.sm.current_state, t0, before, llm_ms, speech))
 
 
 def _clean_list(items) -> list:
@@ -420,9 +492,11 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str, toke
             update_session, token, session_id,
             status="INTERRUPTED", completed_at=_now_iso(), total_duration_seconds=_duration_seconds(ctx),
         )
+        await _save_session_usage(ctx)
         return
 
     await _run_debrief(ctx)
+    await _save_session_usage(ctx)
     manager.disconnect(session_id)
 
 

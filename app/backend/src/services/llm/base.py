@@ -23,6 +23,19 @@ class LLMProvider(ABC):
 
     # Cleared the first time the model rejects response_format, so later calls skip the failed request.
     supports_response_format = True
+    # Attempts made by the most recent generate_structured call.
+    last_attempts = 0
+
+    def record_usage(self, usage: Optional[dict[str, Any]]) -> None:
+        """Add one completed request's token counts. Providers call this with the response's usage block."""
+        usage = usage or {}
+        self._in_tokens = getattr(self, "_in_tokens", 0) + int(usage.get("prompt_tokens") or 0)
+        self._out_tokens = getattr(self, "_out_tokens", 0) + int(usage.get("completion_tokens") or 0)
+        self._calls = getattr(self, "_calls", 0) + 1
+
+    def usage_snapshot(self) -> tuple[int, int, int]:
+        """Running totals as (input tokens, output tokens, requests)."""
+        return getattr(self, "_in_tokens", 0), getattr(self, "_out_tokens", 0), getattr(self, "_calls", 0)
 
     @abstractmethod
     async def generate(
@@ -62,6 +75,7 @@ class LLMProvider(ABC):
         problem = "no attempt was made"
 
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            self.last_attempts = attempt
             try:
                 reply = await self._generate_json(attempt_messages, json_schema, temperature)
             except httpx.TransportError as e:

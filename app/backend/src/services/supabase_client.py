@@ -80,3 +80,12 @@ def save_debrief(user_jwt: str, session_id: str, debrief_data: dict):
         "session_id": session_id,
         **debrief_data,
     }).execute()
+
+
+# Internal metrics tables are written with the service role only (RLS on, no policies).
+def save_turn_metrics(session_id: str, row: dict):
+    return supabase.table("turn_metrics").insert({"session_id": session_id, **row}).execute()
+
+
+def upsert_session_usage(session_id: str, row: dict):
+    return supabase.table("session_usage").upsert({"session_id": session_id, **row}).execute()

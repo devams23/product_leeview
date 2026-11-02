@@ -56,6 +56,7 @@ class NVIDIANIMProvider(LLMProvider):
                     response=response,
                 )
             data = response.json()
+            self.record_usage(data.get("usage"))
             content = data["choices"][0]["message"].get("content") or ""
             # Reasoning models prepend their thinking; the interviewer must only say the answer.
             return re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
