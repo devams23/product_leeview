@@ -25,6 +25,7 @@ const DRAIN_PADDING_MS = 150;
 const DEBRIEF_TIMEOUT_MS = 90_000;
 const SLUG_POLL_MS = 1000;
 const SORRY_TEXT = "Sorry, something glitched — could you repeat that?";
+const PREPARE_FALLBACK_TEXT = "Whenever you're ready, say hello and we'll begin.";
 
 const LIVE_PHASES: ReadonlySet<Phase> = new Set<Phase>(["LISTENING", "AI_SPEAKING", "THINKING"]);
 // Phases in which server audio is still played.
@@ -156,7 +157,9 @@ export function useInterview(auth: AuthState): {
   function onWatchdog(expected: Phase) {
     if (phaseRef.current !== expected) return;
     clearTimer("drain");
-    setAiCaption({ speaker: "AI", text: SORRY_TEXT, final: true });
+    // A stalled opening has nothing to apologise for yet: invite the candidate to start instead.
+    const text = expected === "PREPARING" ? PREPARE_FALLBACK_TEXT : SORRY_TEXT;
+    setAiCaption({ speaker: "AI", text, final: true });
     stopSources();
     applyPhase("LISTENING");
   }
