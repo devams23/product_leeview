@@ -2,38 +2,54 @@ import { useEffect, useRef, useState } from "react";
 import type { AuthState, Caption, Debrief, InterviewError, Phase, Stage } from "../types";
 import { InterviewWebSocket, createSession } from "../services/websocket";
 import { DeepgramSTT } from "../services/deepgramStt";
+import { DeepgramFluxSTT } from "../services/fluxStt";
+import type { SttCallbacks, SttClient } from "../services/stt";
+import { DEEPGRAM_API_KEY } from "../env";
 import { makeError, toInterviewError } from "../services/errors";
 import { getProblemData, slugFromPath } from "../utils/domScraper";
+import { IntroGate, MIN_CALM_MS } from "./introGate";
+import {
+  HEARTBEAT_MS,
+  SERVER_SILENCE_MS,
+  SPEAKING_STALL_MS,
+  THINKING_SLOW_MS,
+  watchdogDelay,
+} from "./watchdog";
 
 const PLAYBACK_SAMPLE_RATE = 24000;
+// Audio scheduled this far ahead of "now" so the first chunks don't underrun.
+const PLAYBACK_PREBUFFER_S = 0.12;
 // Silence after the last final segment before the utterance is sent (spec §5).
 const FLUSH_DELAY_MS = 1200;
 const KEEPALIVE_MS = 5000;
+// Audio chunk size sent to STT; small enough that a turn's end is noticed quickly.
+const RECORDER_TIMESLICE_MS = 100;
+// Candidate-activity pings to the backend, so its idle check-ins don't cut in mid-sentence.
+const ACTIVITY_MS = 2000;
+// Across the whole interview, not per drop.
+const STT_RECONNECT_LIMIT = 3;
 const ELAPSED_TICK_MS = 1000;
 const LEVEL_TICK_MS = 50;
 const DRAIN_PADDING_MS = 150;
 const DEBRIEF_TIMEOUT_MS = 90_000;
 const SLUG_POLL_MS = 1000;
 const SORRY_TEXT = "Sorry, something glitched — could you repeat that?";
+const PREPARE_FALLBACK_TEXT = "Whenever you're ready, say hello and we'll begin.";
 
 const LIVE_PHASES: ReadonlySet<Phase> = new Set<Phase>(["LISTENING", "AI_SPEAKING", "THINKING"]);
 // Phases in which server audio is still played.
-const AUDIO_PHASES: ReadonlySet<Phase> = new Set<Phase>(["CONNECTING", "LISTENING", "AI_SPEAKING", "THINKING"]);
+const AUDIO_PHASES: ReadonlySet<Phase> = new Set<Phase>(["CONNECTING", "PREPARING", "LISTENING", "AI_SPEAKING", "THINKING"]);
 const STAGES: ReadonlySet<string> = new Set<string>([
   "INTRO", "AWAITING_CLARIFICATION", "AWAITING_APPROACH", "AWAITING_CODE",
   "AWAITING_WALKTHROUGH", "CONCLUDING", "GENERATING_DEBRIEF", "COMPLETED",
 ]);
 
-type TimerKey = "flush" | "drain" | "elapsed" | "keepAlive" | "level" | "debrief";
+type TimerKey = "flush" | "drain" | "elapsed" | "keepAlive" | "level" | "debrief" | "calm"
+  | "watchdog" | "slow" | "heartbeat";
 
-function hexToBytes(hexData: string): Uint8Array {
-  const cleanHex = hexData.replace(/[^0-9a-fA-F]/g, "");
-  const bytes = new Uint8Array(Math.floor(cleanHex.length / 2));
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(cleanHex.substr(i * 2, 2), 16);
-  }
-  return bytes;
-}
+type SttKind = "flux" | "nova";
+/** Holds the client once connected, so its close callback can tell whether it is still current. */
+type SttConnection = { client: SttClient | null };
 
 function joinText(a: string, b: string): string {
   return [a.trim(), b.trim()].filter(Boolean).join(" ");
@@ -57,6 +73,7 @@ export function useInterview(auth: AuthState): {
   muted: boolean; toggleMute(): void;
   aiCaption: Caption | null; userCaption: Caption | null;
   debrief: Debrief | null; sessionId: string | null; error: InterviewError | null;
+  slow: boolean; // the interviewer has been thinking for a while
   start(): Promise<void>; end(): void; reset(): void; // reset -> IDLE, full cleanup
 } {
   const [phase, setPhaseState] = useState<Phase>("IDLE");
@@ -69,8 +86,11 @@ export function useInterview(auth: AuthState): {
   const [debrief, setDebrief] = useState<Debrief | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<InterviewError | null>(null);
+  const [slow, setSlow] = useState(false);
 
   const phaseRef = useRef<Phase>("IDLE");
+  // Time of the last message from the server, including PONG; drives the dead-socket check.
+  const lastServerMsgRef = useRef(0);
   const mutedRef = useRef(false);
   const authRef = useRef(auth);
   authRef.current = auth;
@@ -78,7 +98,12 @@ export function useInterview(auth: AuthState): {
   const slugRef = useRef<string | null>(null);
 
   const wsRef = useRef<InterviewWebSocket | null>(null);
-  const sttRef = useRef<DeepgramSTT | null>(null);
+  // Holds the opening audio until the calm screen has been shown for MIN_CALM_MS.
+  const gateRef = useRef<IntroGate<any> | null>(null);
+  const sttRef = useRef<SttClient | null>(null);
+  const sttKindRef = useRef<SttKind>("flux");
+  const sttReconnectsRef = useRef(0);
+  const lastActivityRef = useRef(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -105,8 +130,10 @@ export function useInterview(auth: AuthState): {
     const sending = phaseRef.current === "LISTENING" && !mutedRef.current;
     if (sending) sttRef.current?.resume();
     else sttRef.current?.pause();
+    // Flux gets audio even while paused, so the calm opening also mutes the mic itself.
+    const micOn = !mutedRef.current && phaseRef.current !== "PREPARING";
     streamRef.current?.getAudioTracks().forEach((track) => {
-      track.enabled = !mutedRef.current;
+      track.enabled = micOn;
     });
   }
 
@@ -120,7 +147,30 @@ export function useInterview(auth: AuthState): {
       clearTimer("flush");
       setUserCaption((c) => (c && c.final ? c : null));
     }
+    clearTimer("slow");
+    setSlow(false);
+    armWatchdog(next);
+    if (next === "THINKING") setTimer("slow", () => setSlow(true), THINKING_SLOW_MS);
     syncSending();
+  }
+
+  /** Arms the phase's watchdog, or clears it for phases that have none. */
+  function armWatchdog(phase: Phase) {
+    clearTimer("watchdog");
+    const delay = watchdogDelay(phase);
+    if (delay === null) return;
+    setTimer("watchdog", () => onWatchdog(phase), delay);
+  }
+
+  /** A phase outlived its timeout: apologise, stop the audio, and hand the floor back. */
+  function onWatchdog(expected: Phase) {
+    if (phaseRef.current !== expected) return;
+    clearTimer("drain");
+    // A stalled opening has nothing to apologise for yet: invite the candidate to start instead.
+    const text = expected === "PREPARING" ? PREPARE_FALLBACK_TEXT : SORRY_TEXT;
+    setAiCaption({ speaker: "AI", text, final: true });
+    stopSources();
+    applyPhase("LISTENING");
   }
 
   // ---- timers ------------------------------------------------------------
@@ -149,7 +199,8 @@ export function useInterview(auth: AuthState): {
 
   // ---- teardown ----------------------------------------------------------
 
-  function stopPlayback() {
+  /** Stops queued and playing audio but keeps the playback context alive. */
+  function stopSources() {
     sourcesRef.current.forEach((source) => {
       try {
         source.onended = null;
@@ -161,26 +212,33 @@ export function useInterview(auth: AuthState): {
     });
     sourcesRef.current.clear();
     nextPlayTimeRef.current = 0;
+  }
+
+  function stopPlayback() {
+    stopSources();
     const ctx = playCtxRef.current;
     playCtxRef.current = null;
     playAnalyserRef.current = null;
     if (ctx && ctx.state !== "closed") ctx.close().catch(() => {});
   }
 
-  function teardownMedia() {
+  function stopRecorder() {
     const recorder = recorderRef.current;
     recorderRef.current = null;
-    if (recorder) {
-      recorder.ondataavailable = null;
-      recorder.onerror = null;
-      if (recorder.state !== "inactive") {
-        try {
-          recorder.stop();
-        } catch {
-          // already stopped
-        }
+    if (!recorder) return;
+    recorder.ondataavailable = null;
+    recorder.onerror = null;
+    if (recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        // already stopped
       }
     }
+  }
+
+  function teardownMedia() {
+    stopRecorder();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
 
@@ -207,6 +265,7 @@ export function useInterview(auth: AuthState): {
   function cleanupAll() {
     generationRef.current += 1;
     clearAllTimers();
+    gateRef.current = null;
     teardownNetwork();
     teardownMedia();
     bufferRef.current = "";
@@ -259,6 +318,7 @@ export function useInterview(auth: AuthState): {
       interimRef.current = "";
     } else {
       interimRef.current = t;
+      noteActivity();
     }
     setUserCaption({
       speaker: "USER",
@@ -279,18 +339,27 @@ export function useInterview(auth: AuthState): {
 
   function onSpeechStarted() {
     clearTimer("flush");
+    noteActivity();
+  }
+
+  /** Tells the backend the candidate is still talking, at most once per ACTIVITY_MS. */
+  function noteActivity() {
+    if (phaseRef.current !== "LISTENING") return;
+    const now = Date.now();
+    if (now - lastActivityRef.current < ACTIVITY_MS) return;
+    lastActivityRef.current = now;
+    wsRef.current?.send({ type: "ACTIVITY" });
   }
 
   // ---- speech out --------------------------------------------------------
 
-  function playChunk(hex: string) {
+  function playChunk(pcm: ArrayBuffer) {
     const ctx = playCtxRef.current;
     if (!ctx || ctx.state === "closed") return;
 
-    const bytes = hexToBytes(hex);
-    const sampleCount = Math.floor(bytes.byteLength / 2);
+    const sampleCount = pcm.byteLength >> 1;
     if (sampleCount === 0) return;
-    const int16 = new Int16Array(bytes.buffer, 0, sampleCount);
+    const int16 = new Int16Array(pcm, 0, sampleCount);
 
     const float32 = new Float32Array(sampleCount);
     for (let i = 0; i < sampleCount; i++) {
@@ -305,7 +374,7 @@ export function useInterview(auth: AuthState): {
     source.connect(playAnalyserRef.current ?? ctx.destination);
 
     const now = ctx.currentTime;
-    if (nextPlayTimeRef.current < now) nextPlayTimeRef.current = now + 0.05;
+    if (nextPlayTimeRef.current < now) nextPlayTimeRef.current = now + PLAYBACK_PREBUFFER_S;
     source.start(nextPlayTimeRef.current);
     nextPlayTimeRef.current += buffer.duration;
 
@@ -330,15 +399,17 @@ export function useInterview(auth: AuthState): {
         if (!AUDIO_PHASES.has(p)) return;
         clearTimer("drain");
         if (p !== "AI_SPEAKING") applyPhase("AI_SPEAKING");
-        playChunk(String(msg.data ?? ""));
+        else armWatchdog("AI_SPEAKING"); // audio is still flowing: restart the stall timer
+        playChunk(msg.pcm);
         return;
       }
 
       case "AUDIO_FINISHED": {
         clearTimer("drain");
+        clearTimer("watchdog");
         const p = phaseRef.current;
-        if (p === "THINKING") {
-          // Turn ended without audio (e.g. LLM failure) — hand the floor back.
+        if (p === "THINKING" || p === "PREPARING") {
+          // Turn ended without audio (e.g. LLM failure, or an opening that had none): hand the floor back.
           applyPhase("LISTENING");
         } else if (p === "AI_SPEAKING") {
           // Wait for queued audio to drain before listening again.
@@ -366,6 +437,7 @@ export function useInterview(auth: AuthState): {
       case "STATE_CHANGED":
         if (typeof msg.state === "string" && STAGES.has(msg.state)) {
           setStage(msg.state as Stage);
+          sttRef.current?.configure(msg.state as Stage);
         }
         return;
 
@@ -409,7 +481,18 @@ export function useInterview(auth: AuthState): {
     const p = phaseRef.current;
     if (p === "GENERATING_DEBRIEF") {
       fail(makeError("DEBRIEF_FAILED", "The connection closed before your debrief was ready."));
-    } else if (p === "PREFLIGHT" || p === "CONNECTING" || LIVE_PHASES.has(p)) {
+    } else if (p === "PREFLIGHT" || p === "CONNECTING" || p === "PREPARING" || LIVE_PHASES.has(p)) {
+      fail(makeError("CONNECTION_LOST"));
+    }
+  }
+
+  // ---- heartbeat ---------------------------------------------------------
+
+  function heartbeatTick() {
+    wsRef.current?.send({ type: "PING" });
+    const p = phaseRef.current;
+    const awaitingServer = LIVE_PHASES.has(p) || p === "PREPARING";
+    if (awaitingServer && Date.now() - lastServerMsgRef.current > SERVER_SILENCE_MS) {
       fail(makeError("CONNECTION_LOST"));
     }
   }
@@ -451,14 +534,87 @@ export function useInterview(auth: AuthState): {
     setVoiceLevel((prev) => (Math.abs(prev - next) < 0.02 ? prev : next));
   }
 
-  function startRecorder(stream: MediaStream, stt: DeepgramSTT) {
+  function startRecorder(stream: MediaStream, stt: SttClient) {
+    stopRecorder();
     const options = MediaRecorder.isTypeSupported("audio/webm") ? { mimeType: "audio/webm" } : undefined;
     const recorder = new MediaRecorder(stream, options);
     recorderRef.current = recorder;
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0 && sttRef.current === stt) stt.sendAudio(event.data);
     };
-    recorder.start(250);
+    // A new recorder writes a fresh WebM header, which a new socket needs before any audio.
+    recorder.start(RECORDER_TIMESLICE_MS);
+  }
+
+  // ---- speech-to-text connection -----------------------------------------
+
+  function sttCallbacks(gen: number, conn: SttConnection): SttCallbacks {
+    return {
+      onTranscript,
+      onUtteranceEnd,
+      onSpeechStarted,
+      onClose: () => handleSttClose(gen, conn),
+    };
+  }
+
+  /** Flux first; Nova-3 only when Flux fails to connect at all. Reconnects keep the same class. */
+  async function connectStt(
+    callbacks: SttCallbacks,
+    kind: SttKind,
+  ): Promise<{ client: SttClient; kind: SttKind }> {
+    if (kind === "nova") {
+      const nova = new DeepgramSTT();
+      await nova.connect(callbacks);
+      return { client: nova, kind: "nova" };
+    }
+    const flux = new DeepgramFluxSTT(DEEPGRAM_API_KEY);
+    try {
+      await flux.connect(callbacks);
+      return { client: flux, kind: "flux" };
+    } catch {
+      console.warn("[LeeView] Flux unavailable, using Nova-3");
+      const nova = new DeepgramSTT();
+      await nova.connect(callbacks);
+      return { client: nova, kind: "nova" };
+    }
+  }
+
+  function needsStt(p: Phase): boolean {
+    return p === "PREPARING" || LIVE_PHASES.has(p);
+  }
+
+  function handleSttClose(gen: number, conn: SttConnection) {
+    if (gen !== generationRef.current || !conn.client || sttRef.current !== conn.client) return;
+    sttRef.current = null;
+    stopRecorder();
+    if (needsStt(phaseRef.current)) void reconnectStt(gen);
+  }
+
+  /** Retries a dropped STT socket with a fresh recorder, until the interview's budget runs out. */
+  async function reconnectStt(gen: number) {
+    while (gen === generationRef.current && sttReconnectsRef.current < STT_RECONNECT_LIMIT) {
+      sttReconnectsRef.current += 1;
+      const conn: SttConnection = { client: null };
+      try {
+        const { client, kind } = await connectStt(sttCallbacks(gen, conn), sttKindRef.current);
+        const stream = streamRef.current;
+        if (gen !== generationRef.current || !stream || !needsStt(phaseRef.current)) {
+          client.disconnect();
+          return;
+        }
+        conn.client = client;
+        sttRef.current = client;
+        sttKindRef.current = kind;
+        syncSending();
+        startRecorder(stream, client);
+        return;
+      } catch {
+        // Try again while the budget lasts.
+      }
+    }
+    if (gen === generationRef.current && needsStt(phaseRef.current)) {
+      fail(makeError("STT_FAILED"));
+    }
   }
 
   // ---- public API --------------------------------------------------------
@@ -477,6 +633,7 @@ export function useInterview(auth: AuthState): {
     setDebrief(null);
     setSessionId(null);
     setError(null);
+    setSlow(false);
   }
 
   async function start(): Promise<void> {
@@ -488,9 +645,12 @@ export function useInterview(auth: AuthState): {
     const isStale = () => gen !== generationRef.current;
 
     slugRef.current = slugFromPath(window.location.pathname);
+    sttReconnectsRef.current = 0;
+    sttKindRef.current = "flux";
     setDebrief(null);
     setSessionId(null);
     setError(null);
+    setSlow(false);
     setAiCaption(null);
     setUserCaption(null);
     setStage(null);
@@ -565,34 +725,43 @@ export function useInterview(auth: AuthState): {
       if (isStale()) return;
       setSessionId(newSessionId);
 
+      // The gate is in place before the socket opens, so no opening message can slip past it.
+      const gate = new IntroGate<any>();
+      gateRef.current = gate;
       const ws = new InterviewWebSocket();
       wsRef.current = ws;
-      await ws.connect(newSessionId, token, handleServerMessage, () => handleSocketClose(ws));
+      await ws.connect(
+        newSessionId,
+        token,
+        (msg) => {
+          lastServerMsgRef.current = Date.now();
+          if (!gateRef.current?.offer(msg)) handleServerMessage(msg);
+        },
+        () => handleSocketClose(ws),
+      );
       if (isStale()) return;
 
-      const stt = new DeepgramSTT();
-      await stt.connect({
-        onTranscript,
-        onUtteranceEnd,
-        onSpeechStarted,
-        onClose: () => {
-          if (sttRef.current !== stt) return;
-          sttRef.current = null;
-          if (LIVE_PHASES.has(phaseRef.current)) fail(makeError("STT_FAILED"));
-        },
-      });
+      lastServerMsgRef.current = Date.now();
+      setTimer("heartbeat", heartbeatTick, HEARTBEAT_MS, true);
+      applyPhase("PREPARING");
+      setTimer("calm", () => {
+        if (isStale()) return;
+        gate.open().forEach(handleServerMessage);
+      }, MIN_CALM_MS);
+
+      const conn: SttConnection = { client: null };
+      const { client: stt, kind } = await connectStt(sttCallbacks(gen, conn), "flux");
       if (isStale()) {
         stt.disconnect();
         return;
       }
 
+      conn.client = stt;
       sttRef.current = stt;
+      sttKindRef.current = kind;
       syncSending();
       startRecorder(stream, stt);
       setTimer("keepAlive", () => sttRef.current?.keepAlive(), KEEPALIVE_MS, true);
-
-      // Intro audio may already have moved us to AI_SPEAKING while connecting.
-      if (phaseRef.current === "CONNECTING") applyPhase("LISTENING");
     } catch (err) {
       if (isStale()) return;
       fail(toInterviewError(err, "UNKNOWN"));
@@ -661,6 +830,7 @@ export function useInterview(auth: AuthState): {
     debrief,
     sessionId,
     error,
+    slow,
     start,
     end,
     reset,

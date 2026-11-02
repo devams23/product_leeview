@@ -1,3 +1,4 @@
+import functools
 import os
 from typing import Optional
 
@@ -50,6 +51,7 @@ from supabase import create_client, Client
 from supabase.lib.client_options import SyncClientOptions
 from config import Settings, get_settings
 
+@functools.lru_cache(maxsize=128)
 def supabase_for_user(user_jwt: str) -> Client:
     settings: Settings = get_settings()
     # supabase-py 2.x has no auth.set_auth; the user's JWT goes in as the Authorization

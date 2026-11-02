@@ -5,6 +5,7 @@ from typing import Any
 from pathlib import Path
 
 from services.llm.base import LLMProvider
+from services.llm.structured import MAX_ATTEMPTS
 from state_machine.states import InterviewState
 
 
@@ -38,7 +39,7 @@ class MockLLMProvider(LLMProvider):
         return "mock"
 
     async def generate(
-        self, messages: list[dict[str, str]], temperature: float = 0.7
+        self, messages: list[dict[str, str]], temperature: float = 0.7, max_tokens: int = 1024
     ) -> str:
         """Generate a chat completion response (not used in structured mode)."""
         return await self._get_response_text(messages)
@@ -48,6 +49,7 @@ class MockLLMProvider(LLMProvider):
         messages: list[dict[str, str]],
         json_schema: dict[str, Any],
         temperature: float = 0.5,
+        max_attempts: int = MAX_ATTEMPTS,
     ) -> dict[str, Any]:
         """Generate a structured response from sample JSON files."""
         if json_schema and "properties" in json_schema:

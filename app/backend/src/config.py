@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "meta-llama/llama-3.2-3b-instruct:free"
+    # USD per million tokens for the configured model; 0 leaves the LLM share of cost_usd at zero.
+    llm_input_price_per_mtok: float = 0.0
+    llm_output_price_per_mtok: float = 0.0
     # "mock" replays canned files from sample_responses/; use it only for offline UI work.
     llm_provider: str = "nvidia_nim"
     supabase_url: str

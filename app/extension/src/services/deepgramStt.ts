@@ -1,17 +1,11 @@
 import { DEEPGRAM_API_KEY } from "../env";
+import type { Stage } from "../types";
 import { TypedError } from "./errors";
-
-export interface DeepgramCallbacks {
-  onTranscript(text: string, isFinal: boolean, speechFinal: boolean): void;
-  onUtteranceEnd(): void;
-  onSpeechStarted?(): void;
-  /** Unexpected close after a successful connect. */
-  onClose?(): void;
-}
+import type { SttCallbacks, SttClient } from "./stt";
 
 const CONNECT_TIMEOUT_MS = 10_000;
 
-export class DeepgramSTT {
+export class DeepgramSTT implements SttClient {
   private socket: WebSocket | null = null;
   private paused = false;
   private hasSentHeader = false;
@@ -34,7 +28,7 @@ export class DeepgramSTT {
     return url.toString();
   }
 
-  connect(callbacks: DeepgramCallbacks): Promise<void> {
+  connect(callbacks: SttCallbacks): Promise<void> {
     if (!this.apiKey) {
       return Promise.reject(
         new TypedError("STT_FAILED", "Speech recognition isn't configured (missing Deepgram key)."),
@@ -69,12 +63,12 @@ export class DeepgramSTT {
           reject(new TypedError("STT_FAILED"));
           return;
         }
-        if (!this.closedByUs) callbacks.onClose?.();
+        if (!this.closedByUs) callbacks.onClose();
       };
     });
   }
 
-  private handleMessage(raw: unknown, cb: DeepgramCallbacks) {
+  private handleMessage(raw: unknown, cb: SttCallbacks) {
     let data: any;
     try {
       data = JSON.parse(String(raw));
@@ -93,7 +87,7 @@ export class DeepgramSTT {
         cb.onUtteranceEnd();
         break;
       case "SpeechStarted":
-        cb.onSpeechStarted?.();
+        cb.onSpeechStarted();
         break;
       default:
         break;
@@ -117,6 +111,9 @@ export class DeepgramSTT {
       this.socket.send(JSON.stringify({ type: "KeepAlive" }));
     }
   }
+
+  /** Nova-3 has no stage-aware endpointing; the stage is ignored here. */
+  configure(_stage: Stage) {}
 
   pause() {
     this.paused = true;

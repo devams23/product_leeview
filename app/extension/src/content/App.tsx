@@ -9,6 +9,7 @@ import { Launcher } from "../components/Launcher";
 import { SignedOutCard } from "../components/SignedOutCard";
 import { ReadyCard } from "../components/ReadyCard";
 import { SetupCard } from "../components/SetupCard";
+import { PreparingCard } from "../components/PreparingCard";
 import { LiveCard } from "../components/LiveCard";
 import { GeneratingCard } from "../components/GeneratingCard";
 import { DebriefCard } from "../components/DebriefCard";
@@ -46,7 +47,7 @@ export default function App() {
 
   const {
     phase, stage, elapsedSeconds, voiceLevel, muted, toggleMute,
-    debrief, sessionId, error, start, end, reset,
+    debrief, sessionId, error, slow, start, end, reset,
   } = interview;
   const live = LIVE_PHASES.has(phase);
 
@@ -121,6 +122,9 @@ export default function App() {
   } else if (phase === "PREFLIGHT" || phase === "CONNECTING") {
     key = phase === "PREFLIGHT" ? "preflight" : "connecting";
     body = <SetupCard phase={phase} />;
+  } else if (phase === "PREPARING") {
+    key = "preparing";
+    body = <PreparingCard onCancel={reset} />;
   } else if (live) {
     key = "live";
     body = (
@@ -130,6 +134,7 @@ export default function App() {
         elapsedSeconds={elapsedSeconds}
         voiceLevel={voiceLevel}
         muted={muted}
+        slow={slow}
         onToggleMute={toggleMute}
         onEnd={end}
       />

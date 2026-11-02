@@ -13,6 +13,7 @@ interface LiveCardProps {
   elapsedSeconds: number;
   voiceLevel: number;
   muted: boolean;
+  slow: boolean;
   onToggleMute: () => void;
   onEnd: () => void;
 }
@@ -28,15 +29,17 @@ function orbModeFor(phase: Phase, muted: boolean): OrbMode {
   return muted ? "muted" : "listening";
 }
 
-function statusFor(phase: Phase, muted: boolean): StatusInfo {
+function statusFor(phase: Phase, muted: boolean, slow: boolean): StatusInfo {
   if (phase === "AI_SPEAKING") return { text: "Interviewer speaking", className: "lv-status lv-status--ai" };
-  if (phase === "THINKING") return { text: "Thinking…", className: "lv-status lv-status--think" };
+  if (phase === "THINKING") {
+    return { text: slow ? "Taking a moment…" : "Thinking…", className: "lv-status lv-status--think" };
+  }
   if (muted) return { text: "Muted", className: "lv-status lv-status--muted" };
   return { text: "Your turn", className: "lv-status lv-status--you" };
 }
 
 /** Live interview: the voice orb, who is talking, where we are, and two controls. */
-export function LiveCard({ phase, stage, elapsedSeconds, voiceLevel, muted, onToggleMute, onEnd }: LiveCardProps) {
+export function LiveCard({ phase, stage, elapsedSeconds, voiceLevel, muted, slow, onToggleMute, onEnd }: LiveCardProps) {
   // Only mounted while live, so the confirm state never outlives the live session.
   const [confirming, setConfirming] = useState(false);
 
@@ -54,7 +57,7 @@ export function LiveCard({ phase, stage, elapsedSeconds, voiceLevel, muted, onTo
     };
   }, [confirming]);
 
-  const status = statusFor(phase, muted);
+  const status = statusFor(phase, muted, slow);
   const current = stageIndex(stage);
 
   return (

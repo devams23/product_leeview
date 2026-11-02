@@ -20,5 +20,11 @@ class ConnectionManager:
         if ws:
             await ws.send_json(message)
 
+    async def send_bytes(self, session_id: str, data: bytes):
+        """Raw binary frame, used for audio. The caller keeps frames at an even length."""
+        ws = self.active_connections.get(session_id)
+        if ws:
+            await ws.send_bytes(data)
+
 
 manager = ConnectionManager()
