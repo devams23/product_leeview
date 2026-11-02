@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 
 import httpx
 
@@ -63,6 +63,15 @@ class LLMProvider(ABC):
     ) -> str:
         """Generate a chat completion response."""
         pass
+
+    async def stream(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.6,
+        max_tokens: int = 400,
+    ) -> AsyncIterator[str]:
+        """Yield the reply in pieces. Providers without streaming yield the whole reply once."""
+        yield await self.generate(messages, temperature=temperature, max_tokens=max_tokens)
 
     async def _generate_json(
         self, messages: list[dict[str, str]], json_schema: dict[str, Any], temperature: float

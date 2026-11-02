@@ -39,7 +39,7 @@ class MockLLMProvider(LLMProvider):
         return "mock"
 
     async def generate(
-        self, messages: list[dict[str, str]], temperature: float = 0.7
+        self, messages: list[dict[str, str]], temperature: float = 0.7, max_tokens: int = 1024
     ) -> str:
         """Generate a chat completion response (not used in structured mode)."""
         return await self._get_response_text(messages)
