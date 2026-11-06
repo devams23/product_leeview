@@ -38,7 +38,10 @@ async function getSavedCode(slug: string, language: string): Promise<string> {
       request.onerror = () => resolve("");
       request.onsuccess = () => {
         const db = request.result;
+        // LeetCode owns this database: an open connection from us would block its version upgrades.
+        db.onversionchange = () => db.close();
         if (!db.objectStoreNames.contains('problem_code')) {
+          db.close();
           resolve("");
           return;
         }
@@ -48,12 +51,15 @@ async function getSavedCode(slug: string, language: string): Promise<string> {
           const store = transaction.objectStore('problem_code');
           const getAllKeysReq = store.getAllKeys();
           const getAllReq = store.getAll();
+          // close() waits for the pending transaction, so the reads above still complete.
+          db.close();
 
           getAllReq.onsuccess = () => {
             resolve(pickSavedCode(getAllKeysReq.result.map(String), getAllReq.result, questionId, language));
           };
           transaction.onerror = () => resolve("");
         } catch {
+          db.close();
           resolve("");
         }
       };
