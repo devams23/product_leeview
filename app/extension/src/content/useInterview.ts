@@ -237,7 +237,8 @@ export function useInterview(auth: AuthState): {
     }
   }
 
-  function teardownMedia() {
+  /** Releases the microphone: recorder, tracks and the level-meter context. Playback is untouched. */
+  function teardownMic() {
     stopRecorder();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -248,8 +249,23 @@ export function useInterview(auth: AuthState): {
     const micCtx = micCtxRef.current;
     micCtxRef.current = null;
     if (micCtx && micCtx.state !== "closed") micCtx.close().catch(() => {});
+  }
 
+  function teardownMedia() {
+    teardownMic();
     stopPlayback();
+  }
+
+  /** The candidate's turns are over: stop listening, but let the interviewer's last words finish. */
+  function stopListening() {
+    clearTimer("keepAlive");
+    clearTimer("level");
+    clearTimer("elapsed");
+    const stt = sttRef.current;
+    sttRef.current = null;
+    stt?.disconnect();
+    teardownMic();
+    setVoiceLevel(0);
   }
 
   function teardownNetwork() {
@@ -450,16 +466,19 @@ export function useInterview(auth: AuthState): {
       case "DEBRIEF_GENERATING": {
         const p = phaseRef.current;
         if (p === "DEBRIEF_READY" || p === "ERROR" || p === "IDLE") return;
+        // The interviewer wrapped up on its own: release the mic and the STT stream now.
+        stopListening();
         applyPhase("GENERATING_DEBRIEF");
         startDebriefTimer();
         return;
       }
 
       case "DEBRIEF_READY":
-        clearTimer("debrief");
+        clearAllTimers();
         setDebrief((msg.data ?? null) as Debrief | null);
         if (typeof msg.session_id === "string") setSessionId(msg.session_id);
         teardownNetwork();
+        teardownMedia();
         setVoiceLevel(0);
         applyPhase("DEBRIEF_READY");
         return;
