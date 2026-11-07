@@ -136,10 +136,11 @@ def delete_key(user_id: str, provider: str) -> None:
 
 def load_user_keys(user_id: str) -> dict[str, str]:
     """The user's decrypted keys. A row that no longer decrypts (rotated secret) is skipped."""
+    fernet = _fernet()  # a missing secret is a server problem, reported before any query
     keys: dict[str, str] = {}
     for row in _rows(user_id):
         try:
-            keys[row["provider"]] = decrypt(row["ciphertext"])
+            keys[row["provider"]] = fernet.decrypt(row["ciphertext"].encode()).decode()
         except InvalidToken:
             logger.error("Stored %s key for a user does not decrypt; was KEY_ENCRYPTION_KEY rotated?", row["provider"])
     return keys
