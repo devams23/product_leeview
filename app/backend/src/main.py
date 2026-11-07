@@ -2,16 +2,26 @@ import asyncio
 import re
 import sys
 import logging
-from typing import Optional
+from typing import Annotated, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from postgrest.exceptions import APIError
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from config import get_settings
 from auth import TokenPayload, get_current_user, get_raw_jwt, verify_jwt
 from websocket.handler import handle_interview_websocket
+from services.deepgram import DeepgramKeyRejected, mint_stt_token
+from services.keys import (
+    PROVIDERS as KEY_PROVIDERS,
+    KeyStoreUnavailable,
+    ResolvedKeys,
+    delete_key,
+    key_status,
+    resolve_keys,
+    save_key,
+)
 from services.supabase_client import create_session
 
 logging.basicConfig(
@@ -71,21 +81,102 @@ app.add_middleware(
 class CreateSessionRequest(BaseModel):
     # Deprecated and ignored: the owner is always the verified token's subject.
     user_id: Optional[str] = None
-    leetcode_slug: str
-    leetcode_title: str
-    problem_difficulty: Optional[str] = None
-    problem_description: str = ""
-    problem_topics: list[str] = []
-    problem_language: str = "python"
+    # Bounded so one request cannot bloat every prompt of the session (and its token bill).
+    leetcode_slug: str = Field(max_length=200)
+    leetcode_title: str = Field(max_length=300)
+    problem_difficulty: Optional[str] = Field(default=None, max_length=20)
+    problem_description: str = Field(default="", max_length=20_000)
+    problem_topics: list[Annotated[str, Field(max_length=80)]] = Field(default=[], max_length=30)
+    problem_language: str = Field(default="python", max_length=40)
 
 
 class CreateSessionResponse(BaseModel):
     session_id: str
 
 
+class SaveKeyRequest(BaseModel):
+    key: str = Field(max_length=1024)
+
+
+def _keys_for(user_id: str) -> ResolvedKeys:
+    """The user's keys, or the HTTP error the dashboard and extension know how to explain."""
+    try:
+        return resolve_keys(user_id)
+    except KeyStoreUnavailable:
+        logger.error("KEY_ENCRYPTION_KEY is not configured; user keys cannot be read")
+        raise HTTPException(status_code=503, detail={"code": "KEY_STORE_UNAVAILABLE", "message": "Key storage is not configured on the server."})
+
+
+def _require_keys(keys: ResolvedKeys, needs_llm: bool = True) -> None:
+    missing = keys.missing()
+    if not needs_llm or settings.llm_provider.lower() == "mock":
+        missing = [m for m in missing if m != "llm"]
+    if missing:
+        raise HTTPException(
+            status_code=412,
+            detail={"code": "KEYS_MISSING", "missing": missing, "message": "Add your API keys in your LeeView profile."},
+        )
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+
+@app.get("/me/keys")
+async def list_my_keys(user: TokenPayload = Depends(get_current_user)):
+    """Which keys the user has saved, masked. Stored keys are never returned."""
+    try:
+        status = await asyncio.to_thread(key_status, user.sub)
+    except Exception as exc:
+        logger.error(f"Could not read key status: {exc}")
+        raise HTTPException(status_code=502, detail="Could not load your keys")
+    return {"keys": status, "server_keys_allowed": settings.allow_server_keys}
+
+
+@app.put("/me/keys/{provider}")
+async def save_my_key(provider: str, req: SaveKeyRequest, user: TokenPayload = Depends(get_current_user)):
+    if provider not in KEY_PROVIDERS:
+        raise HTTPException(status_code=404, detail="Unknown provider")
+    try:
+        await asyncio.to_thread(save_key, user.sub, provider, req.key)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except KeyStoreUnavailable:
+        raise HTTPException(status_code=503, detail="Key storage is not configured on the server.")
+    except Exception as exc:
+        logger.error(f"Could not save a {provider} key: {type(exc).__name__}")
+        raise HTTPException(status_code=502, detail="Could not save your key")
+    return {"keys": await asyncio.to_thread(key_status, user.sub)}
+
+
+@app.delete("/me/keys/{provider}")
+async def delete_my_key(provider: str, user: TokenPayload = Depends(get_current_user)):
+    if provider not in KEY_PROVIDERS:
+        raise HTTPException(status_code=404, detail="Unknown provider")
+    try:
+        await asyncio.to_thread(delete_key, user.sub, provider)
+    except Exception as exc:
+        logger.error(f"Could not delete a {provider} key: {type(exc).__name__}")
+        raise HTTPException(status_code=502, detail="Could not remove your key")
+    return {"keys": await asyncio.to_thread(key_status, user.sub)}
+
+
+@app.post("/stt/token")
+async def stt_token(user: TokenPayload = Depends(get_current_user)):
+    """A short-lived Deepgram token for the extension's speech-to-text socket, minted from the user's key."""
+    keys = await asyncio.to_thread(_keys_for, user.sub)
+    _require_keys(keys, needs_llm=False)
+    try:
+        return await mint_stt_token(keys.deepgram, settings.stt_token_ttl_s)
+    except DeepgramKeyRejected:
+        raise HTTPException(
+            status_code=412,
+            detail={"code": "KEY_REJECTED", "missing": ["deepgram"], "message": "Deepgram rejected your key. Check it in your LeeView profile."},
+        )
+    except Exception as exc:
+        logger.error(f"Could not mint a Deepgram token: {type(exc).__name__}: {exc}")
+        raise HTTPException(status_code=502, detail="Speech recognition is unavailable right now")
 
 
 @app.post("/sessions", response_model=CreateSessionResponse)
@@ -94,6 +185,8 @@ async def create_interview_session(
     token: str = Depends(get_raw_jwt),
     user: TokenPayload = Depends(get_current_user),
 ):
+    # Checked up front, so a user without keys learns it before the mic opens, not mid-interview.
+    _require_keys(await asyncio.to_thread(_keys_for, user.sub))
     try:
         result = await asyncio.to_thread(
             create_session,
@@ -124,9 +217,9 @@ async def create_interview_session(
 async def interview_ws(websocket: WebSocket, session_id: str, token: str = Query(...)):
     # Verify the token to ensure the connection is authenticated
     try:
-        verify_jwt(token)
+        user = verify_jwt(token)
     except Exception:
         await websocket.close(code=1008, reason="Invalid authentication token")
         return
 
-    await handle_interview_websocket(websocket, session_id, token)
+    await handle_interview_websocket(websocket, session_id, token, user.sub)
