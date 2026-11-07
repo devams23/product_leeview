@@ -10,6 +10,7 @@ os.environ.setdefault("SUPABASE_JWT_SECRET", "test-secret")
 from fastapi import WebSocketDisconnect
 
 import websocket.handler as handler
+from services.keys import ResolvedKeys
 from services.llm.base import LLMProvider
 
 
@@ -29,6 +30,9 @@ class FakeWebSocket:
         for item in incoming:
             self.queue.put_nowait(item)
         self.sent: list = []
+        self.audio: list = []
+        self.accepted = False
+        self.closed = None
 
     async def receive_json(self):
         item = await self.queue.get()
@@ -42,6 +46,15 @@ class FakeWebSocket:
 
     async def send_json(self, payload):
         self.sent.append(payload)
+
+    async def send_bytes(self, data):
+        self.audio.append(data)
+
+    async def accept(self):
+        self.accepted = True
+
+    async def close(self, code=1000, reason=None):
+        self.closed = (code, reason)
 
 
 class ScriptedLLM(LLMProvider):
@@ -120,6 +133,9 @@ class FakeTTSSession:
 
 
 class FakeTTS:
+    def __init__(self, *args, **kwargs):
+        pass
+
     @asynccontextmanager
     async def session(self):
         yield FakeTTSSession()
@@ -133,16 +149,15 @@ def run_session(monkeypatch, incoming, llm):
     fake_ws = FakeWebSocket(incoming)
     debriefs = []
 
-    async def connect(websocket, session_id):
-        return None
-
     async def send_to_session(session_id, message):
         fake_ws.sent.append(message)
 
     async def run_debrief(ctx):
         debriefs.append(ctx)
 
-    monkeypatch.setattr(handler.manager, "connect", connect)
+    monkeypatch.setattr(handler, "_LIVE", {})
+    monkeypatch.setattr(handler.get_settings(), "resume_grace_s", 0)
+    monkeypatch.setattr(handler, "resolve_keys", lambda user_id: ResolvedKeys("nv", "or", "dg"))
     monkeypatch.setattr(handler.manager, "send_to_session", send_to_session)
     monkeypatch.setattr(handler, "get_session", lambda token, sid: SimpleNamespace(data={"leetcode_title": "T"}))
     for name in (
@@ -150,11 +165,11 @@ def run_session(monkeypatch, incoming, llm):
         "upsert_session_usage", "save_code_snapshot",
     ):
         monkeypatch.setattr(handler, name, noop)
-    monkeypatch.setattr(handler, "create_llm_provider", lambda: llm)
+    monkeypatch.setattr(handler, "create_llm_provider", lambda *a, **k: llm)
     monkeypatch.setattr(handler, "DeepgramTTSClient", FakeTTS)
     monkeypatch.setattr(handler, "_run_debrief", run_debrief)
 
-    asyncio.run(asyncio.wait_for(handler.handle_interview_websocket(fake_ws, "s", "t"), 2))
+    asyncio.run(asyncio.wait_for(handler.handle_interview_websocket(fake_ws, "s", "t", "u"), 2))
     return fake_ws, debriefs
 
 

@@ -82,6 +82,31 @@ def save_debrief(user_jwt: str, session_id: str, debrief_data: dict):
     }).execute()
 
 
+def load_resume_state(user_jwt: str, session_id: str) -> dict:
+    """What a dropped interview needs to carry on after the backend lost its memory of it (a restart).
+
+    The transcript, the last state the session moved to, and the newest code snapshot.
+    """
+    client = supabase_for_user(user_jwt)
+    transcript = (
+        client.table("transcript_logs").select("speaker,text")
+        .eq("session_id", session_id).order("timestamp").execute()
+    ).data or []
+    last_transition = (
+        client.table("state_transitions").select("to_state")
+        .eq("session_id", session_id).order("transitioned_at", desc=True).limit(1).execute()
+    ).data or []
+    snapshot = (
+        client.table("code_snapshots").select("code,language")
+        .eq("session_id", session_id).order("captured_at", desc=True).limit(1).execute()
+    ).data or []
+    return {
+        "transcript": transcript,
+        "state": last_transition[0]["to_state"] if last_transition else None,
+        "code": snapshot[0] if snapshot else None,
+    }
+
+
 # Internal metrics tables are written with the service role only (RLS on, no policies).
 def save_turn_metrics(session_id: str, row: dict):
     return supabase.table("turn_metrics").insert({"session_id": session_id, **row}).execute()
