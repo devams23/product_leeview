@@ -1,4 +1,3 @@
-import { DEEPGRAM_API_KEY } from "../env";
 import type { Stage } from "../types";
 import { TypedError } from "./errors";
 import type { SttCallbacks, SttClient } from "./stt";
@@ -10,10 +9,11 @@ export class DeepgramSTT implements SttClient {
   private paused = false;
   private hasSentHeader = false;
   private closedByUs = false;
-  private readonly apiKey: string;
+  private readonly accessToken: string;
 
-  constructor() {
-    this.apiKey = DEEPGRAM_API_KEY || "";
+  /** `accessToken` is a short-lived Deepgram token minted by the backend, never a raw key. */
+  constructor(accessToken: string) {
+    this.accessToken = accessToken;
   }
 
   static buildUrl(): string {
@@ -29,14 +29,12 @@ export class DeepgramSTT implements SttClient {
   }
 
   connect(callbacks: SttCallbacks): Promise<void> {
-    if (!this.apiKey) {
-      return Promise.reject(
-        new TypedError("STT_FAILED", "Speech recognition isn't configured (missing Deepgram key)."),
-      );
+    if (!this.accessToken) {
+      return Promise.reject(new TypedError("STT_FAILED"));
     }
 
     return new Promise<void>((resolve, reject) => {
-      const socket = new WebSocket(DeepgramSTT.buildUrl(), ["token", this.apiKey]);
+      const socket = new WebSocket(DeepgramSTT.buildUrl(), ["bearer", this.accessToken]);
       this.socket = socket;
       let opened = false;
 

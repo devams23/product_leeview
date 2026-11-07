@@ -4,6 +4,7 @@ from postgrest.exceptions import APIError
 
 import main
 from auth import TokenPayload, get_current_user, get_raw_jwt
+from services.keys import ResolvedKeys
 
 BODY = {"leetcode_slug": "two-sum", "leetcode_title": "Two Sum", "problem_difficulty": "Easy"}
 USER_GONE = {
@@ -15,7 +16,8 @@ USER_GONE = {
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    monkeypatch.setattr(main, "resolve_keys", lambda user_id: ResolvedKeys("nv-key", "", "dg-key"))
     main.app.dependency_overrides[get_raw_jwt] = lambda: "token"
     main.app.dependency_overrides[get_current_user] = lambda: TokenPayload(sub="gone-user", aud="authenticated", exp=2, iat=1)
     yield TestClient(main.app)

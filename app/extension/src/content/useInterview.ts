@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { AuthState, Caption, Debrief, InterviewError, Phase, Stage } from "../types";
-import { InterviewWebSocket, createSession } from "../services/websocket";
+import { InterviewWebSocket, createSession, rejectionError } from "../services/websocket";
 import { DeepgramSTT } from "../services/deepgramStt";
 import { DeepgramFluxSTT } from "../services/fluxStt";
 import type { SttCallbacks, SttClient } from "../services/stt";
-import { DEEPGRAM_API_KEY } from "../env";
-import { makeError, toInterviewError } from "../services/errors";
+import { fetchSttToken } from "../services/sttToken";
+import { TypedError, makeError, toInterviewError } from "../services/errors";
 import { getProblemData, slugFromPath } from "../utils/domScraper";
 import { IntroGate, MIN_CALM_MS } from "./introGate";
 import {
@@ -28,6 +28,10 @@ const RECORDER_TIMESLICE_MS = 100;
 const ACTIVITY_MS = 2000;
 // Across the whole interview, not per drop.
 const STT_RECONNECT_LIMIT = 3;
+// Interview socket: retries per drop, waiting 1s, 2s, 4s. The backend holds a dropped
+// interview for 45s and resumes it where it stopped.
+const WS_RECONNECT_ATTEMPTS = 3;
+const WS_RECONNECT_BASE_MS = 1000;
 const ELAPSED_TICK_MS = 1000;
 const LEVEL_TICK_MS = 50;
 const DRAIN_PADDING_MS = 150;
@@ -35,6 +39,11 @@ const DEBRIEF_TIMEOUT_MS = 90_000;
 const SLUG_POLL_MS = 1000;
 const SORRY_TEXT = "Sorry, something glitched — could you repeat that?";
 const PREPARE_FALLBACK_TEXT = "Whenever you're ready, say hello and we'll begin.";
+
+// Server ERROR codes that come just before it closes the socket with code 1008.
+const REFUSALS: ReadonlySet<string> = new Set([
+  "KEYS_MISSING", "SESSION_ENDED", "SESSION_BUSY", "SESSION_UNAVAILABLE",
+]);
 
 const LIVE_PHASES: ReadonlySet<Phase> = new Set<Phase>(["LISTENING", "AI_SPEAKING", "THINKING"]);
 // Phases in which server audio is still played.
@@ -50,6 +59,10 @@ type TimerKey = "flush" | "drain" | "elapsed" | "keepAlive" | "level" | "debrief
 type SttKind = "flux" | "nova";
 /** Holds the client once connected, so its close callback can tell whether it is still current. */
 type SttConnection = { client: SttClient | null };
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
 
 function joinText(a: string, b: string): string {
   return [a.trim(), b.trim()].filter(Boolean).join(" ");
@@ -85,6 +98,8 @@ export function useInterview(auth: AuthState): {
   const [userCaption, setUserCaption] = useState<Caption | null>(null);
   const [debrief, setDebrief] = useState<Debrief | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // Mirrors sessionId for the socket reconnect, which runs outside React's render.
+  const sessionIdRef = useRef<string | null>(null);
   const [error, setError] = useState<InterviewError | null>(null);
   const [slow, setSlow] = useState(false);
 
@@ -443,6 +458,8 @@ export function useInterview(auth: AuthState): {
 
       case "ERROR":
         console.warn("[LeeView] server error:", msg.code, msg.message);
+        // A refused session: the close that follows carries the reason, handled there.
+        if (REFUSALS.has(msg.code)) return;
         setAiCaption({ speaker: "AI", text: SORRY_TEXT, final: true });
         if (phaseRef.current === "THINKING") applyPhase("LISTENING");
         return;
@@ -475,15 +492,66 @@ export function useInterview(auth: AuthState): {
     }
   }
 
-  function handleSocketClose(ws: InterviewWebSocket) {
+  function handleSocketClose(ws: InterviewWebSocket, ev: CloseEvent) {
     if (wsRef.current !== ws) return;
     wsRef.current = null;
     const p = phaseRef.current;
-    if (p === "GENERATING_DEBRIEF") {
+    if (ev.code === 1008 && p !== "DEBRIEF_READY" && p !== "IDLE" && p !== "ERROR") {
+      fail(toInterviewError(rejectionError(ev.reason), "UNKNOWN"));
+    } else if (p === "GENERATING_DEBRIEF") {
       fail(makeError("DEBRIEF_FAILED", "The connection closed before your debrief was ready."));
+    } else if (LIVE_PHASES.has(p) && sessionIdRef.current) {
+      void reconnectSocket(generationRef.current, sessionIdRef.current);
     } else if (p === "PREFLIGHT" || p === "CONNECTING" || p === "PREPARING" || LIVE_PHASES.has(p)) {
       fail(makeError("CONNECTION_LOST"));
     }
+  }
+
+  /**
+   * The interview socket dropped mid-interview (network blip, laptop sleep, server restart).
+   * Reopens it on the same session; the backend resumes from its saved transcript and says so.
+   */
+  async function reconnectSocket(gen: number, session: string) {
+    const isStale = () => gen !== generationRef.current || !LIVE_PHASES.has(phaseRef.current);
+    // Give the heartbeat a fresh window while we retry.
+    lastServerMsgRef.current = Date.now();
+    for (let attempt = 0; attempt < WS_RECONNECT_ATTEMPTS; attempt++) {
+      await delay(WS_RECONNECT_BASE_MS * 2 ** attempt);
+      if (isStale()) return;
+      const token = authRef.current.token;
+      if (!token) {
+        fail(makeError("AUTH_EXPIRED"));
+        return;
+      }
+      const ws = new InterviewWebSocket();
+      wsRef.current = ws;
+      try {
+        await ws.connect(
+          session,
+          token,
+          (msg) => {
+            lastServerMsgRef.current = Date.now();
+            handleServerMessage(msg);
+          },
+          (ev) => handleSocketClose(ws, ev),
+        );
+      } catch (err) {
+        if (wsRef.current === ws) wsRef.current = null;
+        if (isStale()) return;
+        if (err instanceof TypedError && !err.retryable) {
+          fail(toInterviewError(err, "CONNECTION_LOST"));
+          return;
+        }
+        continue;
+      }
+      if (isStale()) {
+        ws.disconnect();
+        return;
+      }
+      lastServerMsgRef.current = Date.now();
+      return;
+    }
+    if (!isStale()) fail(makeError("CONNECTION_LOST"));
   }
 
   // ---- heartbeat ---------------------------------------------------------
@@ -557,23 +625,31 @@ export function useInterview(auth: AuthState): {
     };
   }
 
+  /** A fresh short-lived Deepgram token per socket, minted by the backend from the user's key. */
+  function sttToken(): Promise<string> {
+    const token = authRef.current.token;
+    if (!token) return Promise.reject(new TypedError("AUTH_EXPIRED"));
+    return fetchSttToken(token);
+  }
+
   /** Flux first; Nova-3 only when Flux fails to connect at all. Reconnects keep the same class. */
   async function connectStt(
     callbacks: SttCallbacks,
     kind: SttKind,
   ): Promise<{ client: SttClient; kind: SttKind }> {
     if (kind === "nova") {
-      const nova = new DeepgramSTT();
+      const nova = new DeepgramSTT(await sttToken());
       await nova.connect(callbacks);
       return { client: nova, kind: "nova" };
     }
-    const flux = new DeepgramFluxSTT(DEEPGRAM_API_KEY);
+    // Token errors (missing or rejected key, expired sign-in) are not a reason to try Nova-3.
+    const flux = new DeepgramFluxSTT(await sttToken());
     try {
       await flux.connect(callbacks);
       return { client: flux, kind: "flux" };
     } catch {
       console.warn("[LeeView] Flux unavailable, using Nova-3");
-      const nova = new DeepgramSTT();
+      const nova = new DeepgramSTT(await sttToken());
       await nova.connect(callbacks);
       return { client: nova, kind: "nova" };
     }
@@ -608,8 +684,13 @@ export function useInterview(auth: AuthState): {
         syncSending();
         startRecorder(stream, client);
         return;
-      } catch {
-        // Try again while the budget lasts.
+      } catch (err) {
+        // Keys or sign-in problems will not fix themselves on a retry.
+        if (err instanceof TypedError && !err.retryable) {
+          if (gen === generationRef.current) fail(toInterviewError(err, "STT_FAILED"));
+          return;
+        }
+        // Otherwise try again while the budget lasts.
       }
     }
     if (gen === generationRef.current && needsStt(phaseRef.current)) {
@@ -632,6 +713,7 @@ export function useInterview(auth: AuthState): {
     setUserCaption(null);
     setDebrief(null);
     setSessionId(null);
+    sessionIdRef.current = null;
     setError(null);
     setSlow(false);
   }
@@ -645,6 +727,7 @@ export function useInterview(auth: AuthState): {
     const isStale = () => gen !== generationRef.current;
 
     slugRef.current = slugFromPath(window.location.pathname);
+    sessionIdRef.current = null;
     sttReconnectsRef.current = 0;
     sttKindRef.current = "flux";
     setDebrief(null);
@@ -724,6 +807,7 @@ export function useInterview(auth: AuthState): {
       );
       if (isStale()) return;
       setSessionId(newSessionId);
+      sessionIdRef.current = newSessionId;
 
       // The gate is in place before the socket opens, so no opening message can slip past it.
       const gate = new IntroGate<any>();
@@ -737,7 +821,7 @@ export function useInterview(auth: AuthState): {
           lastServerMsgRef.current = Date.now();
           if (!gateRef.current?.offer(msg)) handleServerMessage(msg);
         },
-        () => handleSocketClose(ws),
+        (ev) => handleSocketClose(ws, ev),
       );
       if (isStale()) return;
 

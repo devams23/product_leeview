@@ -8,8 +8,9 @@ logger = logging.getLogger(__name__)
 
 
 class DebriefEngine:
-    def __init__(self):
-        self.llm = create_llm_provider()
+    def __init__(self, llm=None):
+        # The session's own provider, so a debrief runs on the same user's keys as the interview.
+        self.llm = llm if llm is not None else create_llm_provider()
 
     async def run(self, interview_data: dict) -> dict:
         """Run the full debrief: scoring + real-world mapping.

@@ -87,15 +87,48 @@ async function settleJourney(user: AuthUser | null, tabId: number): Promise<void
   }
 }
 
+const DASHBOARD_ORIGIN = new URL(DASHBOARD_URL).origin;
+
+/** Only the dashboard's own tabs may report who is signed in. */
+function fromDashboard(sender: chrome.runtime.MessageSender): boolean {
+  const url = sender.url ?? sender.tab?.url;
+  if (!url) return false;
+  try {
+    return new URL(url).origin === DASHBOARD_ORIGIN;
+  } catch {
+    return false;
+  }
+}
+
+/** The signed-in user as the auth bridge reports it, or null when the shape is wrong. */
+function parseAuthUser(value: unknown): AuthUser | null {
+  if (!value || typeof value !== "object") return null;
+  const { id, email, token } = value as Record<string, unknown>;
+  if (typeof id !== "string" || !id || id.length > 100) return null;
+  if (token !== undefined && (typeof token !== "string" || token.length > 8192)) return null;
+  return { id, email: typeof email === "string" ? email.slice(0, 320) : "", token: token as string | undefined };
+}
+
+/** Dashboard paths only: "/profile", never "//other.host" or a full URL. */
+function safeDashboardPath(path: unknown): string {
+  return typeof path === "string" && /^\/(?!\/)[\w\-./?=&#%]*$/.test(path) ? path : "/";
+}
+
 // Listen for auth state from the dashboard content script and answer overlay requests.
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Messages from other extensions or web pages are never accepted.
+  if (sender.id !== chrome.runtime.id || !message || typeof message !== "object") return;
+
   if (message.type === "AUTH_STATE") {
-    if (message.user) {
-      chrome.storage.local.set({ user: message.user, userId: message.user.id, token: message.user.token });
+    if (!fromDashboard(sender)) return;
+    const user = message.user === null ? null : parseAuthUser(message.user);
+    if (message.user !== null && !user) return;
+    if (user) {
+      chrome.storage.local.set({ user, userId: user.id, token: user.token });
     } else {
       chrome.storage.local.remove(["user", "userId", "token"]);
     }
-    if (sender.tab?.id !== undefined) void settleJourney(message.user ?? null, sender.tab.id);
+    if (sender.tab?.id !== undefined) void settleJourney(user, sender.tab.id);
   }
   if (message.type === "GET_AUTH") {
     chrome.storage.local.get(["user", "userId", "token"], (result) => {
@@ -104,8 +137,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // keep channel open for async response
   }
   if (message.type === "OPEN_DASHBOARD") {
-    const path = typeof message.path === "string" && message.path.startsWith("/") ? message.path : "/";
-    const url = `${DASHBOARD_URL}${path}`;
+    const url = `${DASHBOARD_URL}${safeDashboardPath(message.path)}`;
     const senderTabId = sender.tab?.id;
 
     if (message.silent && senderTabId !== undefined) {

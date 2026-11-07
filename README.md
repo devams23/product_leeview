@@ -1,149 +1,116 @@
 <div align="center">
-  <!-- Use a clean placeholder logo for now -->
-  <img src="logo.png" onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Google_Material_Design_Logo.svg/120px-Google_Material_Design_Logo.svg.png'" alt="LeeView Logo" width="100" />
+  <img src="logo.png" alt="LeeView" width="88" />
   <h1>LeeView</h1>
-  <p><b>Transforming every LeetCode problem into a real-time, AI-driven mock interview.</b></p>
+  <p><b>A voice mock interview on any LeetCode problem.</b></p>
 </div>
 
-LeeView is the definitive copilot for technical interview preparation. We inject a seamless, unobtrusive overlay directly into your LeetCode environment, capturing your voice and code in real-time. Powered by ultra-low latency speech-to-text and LLM orchestration, LeeView dynamically guides you through a full technical interview—from clarifying the problem to writing the code and walking through the solution—giving you a comprehensive debrief the moment you finish. Practice the way you'll actually perform.
+Open a LeetCode problem, click **Start interview**, and talk. An AI interviewer asks you to clarify the problem, explain your approach, write the code and walk through it, just like a real interview. When you finish you get a scored debrief, and every session is saved on your dashboard.
 
----
+LeeView is open source and **bring your own keys**: you add your own NVIDIA NIM or OpenRouter key and a Deepgram key on your profile. Nobody pays for anyone else's usage.
 
-## Architecture & Data Flow
-
-LeeView operates on a lightning-fast asynchronous architecture designed for real-time human-AI interaction. The Chrome Extension acts as the edge client, continuously syncing editor state and voice data to our FastAPI backend over WebSockets.
+## How it works
 
 ```mermaid
-flowchart TB
-    %% Styling Classes
-    classDef edge fill:#f8fafc,stroke:#cbd5e1,stroke-width:2px,color:#0f172a,rx:5px,ry:5px
-    classDef backend fill:#eff6ff,stroke:#3b82f6,stroke-width:2px,color:#1e3a8a,rx:5px,ry:5px
-    classDef external fill:#f0fdf4,stroke:#22c55e,stroke-width:2px,color:#14532d,rx:5px,ry:5px
-    classDef db fill:#fff7ed,stroke:#f97316,stroke-width:2px,color:#7c2d12,rx:5px,ry:5px
-
-    subgraph Client["Edge (Chrome Extension)"]
-        direction TB
-        UI["Minimal UI Overlay<br/><small>Injected over LeetCode</small>"]:::edge
-        Mic["Web Audio API<br/><small>Captures Voice</small>"]:::edge
-        Code["CodeMirror 6 / IndexedDB<br/><small>Live Source Snapshot</small>"]:::edge
+flowchart LR
+    subgraph Browser
+        EXT["Extension panel<br/>on LeetCode"]
+        DASH["Dashboard<br/>sign-in, history, keys"]
     end
 
-    subgraph Server["Orchestrator (FastAPI Backend)"]
-        direction TB
-        WS["WebSocket Gateway<br/><small>Bi-directional Streaming</small>"]:::backend
-        SM["State Machine<br/><small>Manages Interview Lifecycle</small>"]:::backend
-        Context["Prompt Builder<br/><small>Assembles Context Array</small>"]:::backend
+    subgraph Backend["FastAPI backend"]
+        WS["Interview socket<br/>state machine"]
+        KEYS["Key store<br/>encrypted"]
+        TOKEN["/stt/token"]
     end
 
-    subgraph AI["AI Infrastructure"]
-        direction LR
-        STT["Deepgram STT<br/><small>Real-time Transcription</small>"]:::external
-        LLM["NVIDIA NIM (Llama 3)<br/><small>High-Throughput Inference</small>"]:::external
-        TTS["Deepgram TTS<br/><small>Aura Voice Synthesis</small>"]:::external
-    end
+    FLUX["Deepgram Flux<br/>speech-to-text"]
+    NIM["NVIDIA NIM"]
+    OR["OpenRouter<br/>fallback"]
+    AURA["Deepgram Aura<br/>voice"]
+    DB[("Supabase<br/>auth + sessions")]
 
-    subgraph Persistence["Data Layer"]
-        direction LR
-        DB[("Supabase (PostgreSQL)<br/><small>Session & Debrief Storage</small>")]:::db
-        Auth["Google OAuth<br/><small>Identity Management</small>"]:::db
-    end
-
-    %% Data Flow Connections
-    UI -- "Initialize Session" --> WS
-    Code -- "Code Snippet" --> WS
-    Mic -- "Raw Audio Bytes" --> STT
-    
-    STT -- "Transcribed Utterance" --> WS
-    WS <--> SM
-    WS --> Context
-    
-    Context -- "System Prompt + History" --> LLM
-    LLM -- "Structured Output" --> WS
-    LLM -. "Response Text" .-> TTS
-    
-    TTS -- "Streaming Audio Chunks" --> WS
-    WS -- "Audio Playback" --> UI
-    
-    WS -. "Sync State" .-> DB
-    Auth -. "Access Token" .-> Client
+    DASH -- "save keys" --> KEYS
+    DASH -. "sign-in token" .-> EXT
+    EXT -- "1. ask for a mic token" --> TOKEN
+    TOKEN -- "60s token from your key" --> EXT
+    EXT -- "2. your voice" --> FLUX
+    FLUX -- "transcript" --> EXT
+    EXT -- "3. what you said + your code" --> WS
+    WS -- "prompt" --> NIM
+    NIM -. "down or rate limited" .-> OR
+    WS -- "reply text" --> AURA
+    AURA -- "audio" --> WS
+    WS -- "4. voice + captions" --> EXT
+    WS -- "transcript, code, debrief" --> DB
+    KEYS --- DB
 ```
 
-## External Services
+1. **Sign in** on the dashboard with Google. The extension picks up the session.
+2. **Add your keys** on the Profile page. Keys are encrypted on the server (Fernet) before they reach Supabase, are only ever shown masked, and never reach the browser again.
+3. **Speak.** The extension streams your mic straight to Deepgram Flux using a token that lasts 60 seconds. The backend mints that token from your Deepgram key, so the key never reaches the browser.
+4. **The interviewer answers.** Each turn sends your words and the current editor code over one WebSocket. The backend moves the interview through its stages, asks the LLM, and streams the spoken reply back as audio. If NVIDIA NIM fails, the turn is retried on OpenRouter and NIM sits out for a minute.
+5. **Debrief.** At the end the LLM scores approach, communication, correctness, code quality and time, and the dashboard shows it alongside the transcript and your code.
 
-LeeView leverages the best-in-class AI infrastructure to deliver conversational latency:
-- **[Deepgram](https://deepgram.com/)**: Industry-leading Speech-to-Text (STT) and Text-to-Speech (TTS) models.
-- **[NVIDIA NIM](https://build.nvidia.com/)**: High-throughput LLM inference for natural, state-aware dialogue.
-- **[Supabase](https://supabase.com/)**: Open-source Firebase alternative handling real-time database persistence, session tracking, and Google OAuth.
+**Dropped connections resume.** If the socket drops (Wi-Fi blip, laptop sleep, server restart), the extension reconnects and the backend picks up where it stopped. It keeps a dropped interview for 45 seconds, and after a restart it rebuilds the session from Supabase.
 
----
+## Repository
 
-## Quick Start (Local Setup)
+| Path | What it is |
+| --- | --- |
+| `app/extension` | Chrome extension (Manifest V3, React, Vite): the interview panel on LeetCode |
+| `app/dashboard` | Web dashboard (React, Vite, Tailwind): sign-in, history, analytics, API keys |
+| `app/backend` | FastAPI: interview socket, state machine, LLM and voice providers, key store |
+| `supabase/migrations` | Database schema and row-level security, applied in order |
 
-To spin up the entire stack locally, ensure you have Python 3.11+, Node.js 18+, and accounts with Supabase, Deepgram, and NVIDIA NIM.
+## Run it locally
 
-### 1. Database & Auth (Supabase)
-1. Create a project at [supabase.com](https://supabase.com) and enable **Google OAuth** in Authentication settings (set redirect URL to `http://localhost:5173`).
-2. Run the SQL migrations found in `supabase/migrations/` sequentially.
-3. Grab your `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. 
+You need Python 3.11+, Node 18+, a Supabase project, and keys from [Deepgram](https://console.deepgram.com) plus [NVIDIA NIM](https://build.nvidia.com) or [OpenRouter](https://openrouter.ai/settings/keys).
 
-### 2. The Brain (FastAPI Backend)
-The backend orchestrates the state machine and interfaces with the AI models via WebSockets.
+**1. Supabase.** Enable Google sign-in with `http://localhost:5173` as a redirect URL, then run every file in `supabase/migrations/` in order.
+
+**2. Backend**
 
 ```bash
 cd app/backend
-python -m venv .venv
-source .venv/bin/activate  # Or .venv\Scripts\activate on Windows
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
+cp .env.example .env    # fill it in; the comments explain each value
+uvicorn main:app --app-dir src --reload --port 8000
 ```
 
-Create an `.env` file in `app/backend`:
-```env
-SUPABASE_URL=your_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key # CRITICAL: Not the anon key
-SUPABASE_ANON_KEY=your_anon_key
-DEEPGRAM_API_KEY=your_deepgram_key
-NVIDIA_NIM_API_KEY=your_nvidia_key
-NVIDIA_NIM_BASE_URL=https://integrate.api.nvidia.com/v1
-```
+Set `KEY_ENCRYPTION_KEY` (the command to generate one is in `.env.example`). Leave `ALLOW_SERVER_KEYS=false` to make every user bring their own keys. Set it to `true` on a private install to use the server's keys instead.
 
-Run the server:
-```bash
-uvicorn  main:app --reload --port 8000
-```
-
-### 3. The Analytics Dashboard (React)
-The dashboard provides Google Auth and visualizes your post-interview debriefs.
+**3. Dashboard**
 
 ```bash
 cd app/dashboard
 npm install
+cp .env.example .env    # Supabase URL + anon key, backend URL
+npm run dev             # http://localhost:5173
 ```
 
-Create an `.env` file in `app/dashboard`:
-```env
-VITE_SUPABASE_URL=your_url
-VITE_SUPABASE_ANON_KEY=your_anon_key
-```
-
-Run the dashboard:
-```bash
-npm run dev
-```
-
-### 4. The Edge Client (Chrome Extension)
-Our extension bridges LeetCode with the backend.
+**4. Extension**
 
 ```bash
 cd app/extension
 npm install
+cp .env.example .env    # backend and dashboard URLs only: never put keys here
 npm run build
 ```
 
-1. Open Chrome and navigate to `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Click **Load unpacked** and select the `app/extension/dist/` directory.
+Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick `app/extension/dist`.
 
-### Putting it all together
-1. Open the dashboard at `http://localhost:5173` and authenticate with Google.
-2. The extension's auth bridge instantly captures your session.
-3. Navigate to any LeetCode problem. The "Start Mock Interview" widget will appear. Click it, and practice like it's the real deal.
+**5. Try it.** Sign in on the dashboard, add your keys under **Profile → API keys**, then open any LeetCode problem and click **Start interview**.
+
+## Tests
+
+None of the tests call a real AI or voice API. Provider HTTP is scripted, so a full interview runs offline, covering the NIM-to-OpenRouter fallback, resume after a drop, and key handling.
+
+```bash
+cd app/backend && pytest -q
+cd app/extension && npm test
+```
+
+## Launching
+
+See [docs/launch-checklist.md](docs/launch-checklist.md).

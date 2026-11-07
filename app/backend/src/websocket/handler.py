@@ -18,8 +18,10 @@ from websocket.clock import timed_action
 from services.llm import create_llm_provider
 from services.llm.streaming import ReplyParser, interview_stream_instructions
 from services.deepgram import DeepgramTTSClient
+from services.keys import KeyStoreUnavailable, resolve_keys
 from services.supabase_client import (
     get_session,
+    load_resume_state,
     log_state_transition,
     log_transcript,
     save_code_snapshot,
@@ -112,10 +114,23 @@ class _InterviewContext:
     user_turns: int = 0
     warned: bool = False  # the five-minutes-left line has been said
     nudges_in_row: int = 0  # check-ins since the candidate last spoke
+    takeover: asyncio.Event = field(default_factory=asyncio.Event)  # set when a newer connection claims the session
 
 
 # How often the receive loop wakes with no message, for timed checks.
 CLOCK_TICK_S = 5.0
+
+# Input caps. The extension sends the whole editor with every utterance; only the newest copy
+# reaches the prompt, but one oversized paste would otherwise ride along on every call's bill.
+MAX_UTTERANCE_CHARS = 4_000
+MAX_CODE_CHARS = 50_000
+# Messages of earlier conversation sent with each turn. A long interview keeps its full
+# transcript for the debrief, but each turn's prompt stays bounded.
+HISTORY_WINDOW = 40
+
+RESUME_TEXT = "Sorry, we got cut off there. Let's carry on from where we were."
+# How long a reconnect waits for the old connection's loop to step aside.
+TAKEOVER_WAIT_S = 10.0
 
 # A dropped interview gets a debrief only once the candidate has answered this many times.
 MIN_TURNS_FOR_DEBRIEF = 3
@@ -475,17 +490,19 @@ async def send_intro(ctx: _InterviewContext):
 
 async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
     sid = ctx.session_id
-    text = (data.get("text") or "").strip()
+    text = str(data.get("text") or "").strip()[:MAX_UTTERANCE_CHARS]
     if not text:
         return
     ctx.user_turns += 1
     ctx.nudges_in_row = 0
 
-    current_code = data.get("current_code") or ""
+    current_code = str(data.get("current_code") or "")
+    if len(current_code) > MAX_CODE_CHARS:
+        current_code = current_code[:MAX_CODE_CHARS] + "\n... (truncated)"
     if current_code.strip():
         ctx.last_code = current_code
     if data.get("language"):
-        ctx.language = data["language"]
+        ctx.language = str(data["language"])[:40]
 
     state_before = ctx.sm.current_state
     logger.info(f"[{sid}] User utterance: '{text[:100]}' (state: {state_before})")
@@ -633,7 +650,7 @@ async def _run_debrief(ctx: _InterviewContext):
 
     try:
         logger.info(f"[{sid}] Generating debrief...")
-        debrief_result = await DebriefEngine().run(interview_data)
+        debrief_result = await DebriefEngine(llm=ctx.llm).run(interview_data)
     except Exception as e:
         logger.error(f"[{sid}] Failed to generate debrief: {e}")
         await _try_send(sid, {"type": "DEBRIEF_FAILED", "message": "The debrief could not be generated."})
@@ -654,55 +671,272 @@ async def _run_debrief(ctx: _InterviewContext):
     )
 
 
-async def handle_interview_websocket(websocket: WebSocket, session_id: str, token: str):
-    """Main WebSocket handler for a single interview session."""
-    await manager.connect(websocket, session_id)
-    sm = StateMachine()
-    llm = create_llm_provider()
-    tts = DeepgramTTSClient()
+@dataclass
+class _LiveSession:
+    """An interview this process is running, or holding while its candidate reconnects."""
+    ctx: _InterviewContext
+    user_id: str
+    running: bool = True  # a connection's loop is driving it
+    finalizing: bool = False  # the grace period ran out and the session is being wrapped up
+    parked: asyncio.Event = field(default_factory=asyncio.Event)
+    grace_task: Optional[asyncio.Task] = None
 
-    logger.info(f"[{session_id}] WebSocket connected, starting interview")
 
-    # Fetch static problem context once
+# One entry per session id. A dropped socket parks its session here for resume_grace_s, so a
+# network blip resumes the same conversation instead of ending the interview.
+# This is per process: with several backend instances, a reconnect must reach the same one
+# (sticky sessions), or it falls back to rebuilding the session from Supabase.
+_LIVE: dict[str, _LiveSession] = {}
+
+
+async def _reject(websocket: WebSocket, code: str, message: str):
+    """Refuse a connection that has been accepted but not attached to the session."""
+    try:
+        await websocket.send_json({"type": "ERROR", "code": code, "message": message})
+        await websocket.close(code=1008, reason=code)
+    except Exception:
+        pass
+
+
+def _problem_context(session_data: dict) -> dict:
+    return {
+        "title": session_data.get("leetcode_title"),
+        "difficulty": session_data.get("problem_difficulty"),
+        "description": session_data.get("problem_description"),
+        "topics": session_data.get("problem_topics"),
+        "language": session_data.get("problem_language"),
+    }
+
+
+def _restore(ctx: _InterviewContext, saved: dict, started_at_iso: Optional[str]) -> None:
+    """Rebuild a session's memory from what was persisted: transcript, state, code and clock."""
+    for row in saved.get("transcript") or []:
+        text = row.get("text") or ""
+        if row.get("speaker") == "USER":
+            ctx.conversation_history.append({"role": "user", "content": f"Candidate: {text}"})
+            ctx.user_turns += 1
+        else:
+            ctx.conversation_history.append({"role": "assistant", "content": text})
+
+    try:
+        state = InterviewState(saved.get("state"))
+    except ValueError:
+        # Spoken lines but no recorded move: the intro's own transition was lost.
+        state = InterviewState.AWAITING_CLARIFICATION
+    ctx.sm.force_transition(state)
+
+    code = saved.get("code") or {}
+    if code.get("code"):
+        ctx.last_code = code["code"]
+        ctx.language = code.get("language") or ctx.language
+
+    if started_at_iso:
+        try:
+            started = datetime.fromisoformat(started_at_iso.replace("Z", "+00:00"))
+            elapsed = max(0.0, (datetime.now(timezone.utc) - started).total_seconds())
+            ctx.started_at = time.monotonic() - elapsed
+        except ValueError:
+            pass
+
+
+async def _claim(websocket: WebSocket, session_id: str, token: str, user_id: str) -> Optional[tuple[_LiveSession, bool]]:
+    """The live session this connection drives, and whether it resumes one. None when refused (already reported)."""
+    live = _LIVE.get(session_id)
+    if live is not None:
+        if live.user_id != user_id:
+            await _reject(websocket, "SESSION_UNAVAILABLE", "This interview session could not be loaded.")
+            return None
+        if live.running:
+            # The old socket can be half-open (a sleeping laptop, a network switch): this connection takes over.
+            live.ctx.takeover.set()
+            try:
+                await asyncio.wait_for(live.parked.wait(), TAKEOVER_WAIT_S)
+            except asyncio.TimeoutError:
+                await _reject(websocket, "SESSION_BUSY", "This interview is still open somewhere else.")
+                return None
+        # Re-checked after the wait: the session may have ended, or another reconnect may have claimed it.
+        if live.finalizing or live.running or _LIVE.get(session_id) is not live:
+            await _reject(websocket, "SESSION_ENDED", "This interview has already ended.")
+            return None
+        if live.grace_task is not None:
+            live.grace_task.cancel()
+            live.grace_task = None
+        live.running = True
+        live.parked.clear()
+        live.ctx.token = token  # the newer JWT; the old one may be close to expiry
+        live.ctx.takeover = asyncio.Event()
+        live.ctx.last_activity = time.monotonic()
+        return live, True
+
+    settings = get_settings()
+    try:
+        keys = await asyncio.to_thread(resolve_keys, user_id)
+    except KeyStoreUnavailable:
+        logger.error(f"[{session_id}] KEY_ENCRYPTION_KEY is not configured; user keys cannot be read")
+        await _reject(websocket, "KEYS_MISSING", "Key storage is not configured on the server.")
+        return None
+    except Exception as e:
+        logger.error(f"[{session_id}] Could not load the user's keys: {type(e).__name__}")
+        await _reject(websocket, "SESSION_UNAVAILABLE", "Your API keys could not be loaded. Please try again.")
+        return None
+    missing = keys.missing()
+    if settings.llm_provider.lower() == "mock":
+        missing = [m for m in missing if m != "llm"]
+    if missing:
+        await _reject(websocket, "KEYS_MISSING", "Add your API keys in your LeeView profile.")
+        return None
+
     try:
         session_data = (await asyncio.to_thread(get_session, token, session_id)).data
-        problem_context = {
-            "title": session_data.get("leetcode_title"),
-            "difficulty": session_data.get("problem_difficulty"),
-            "description": session_data.get("problem_description"),
-            "topics": session_data.get("problem_topics"),
-            "language": session_data.get("problem_language")
-        }
     except Exception as e:
         # Unknown session or someone else's (RLS hides it): there is no problem to interview on.
         logger.error(f"[{session_id}] Failed to fetch session context: {e}")
-        await _try_send(session_id, {"type": "ERROR", "code": "SESSION_UNAVAILABLE", "message": "This interview session could not be loaded."})
-        manager.disconnect(session_id)
-        await websocket.close(code=1008, reason="Session unavailable")
-        return
+        await _reject(websocket, "SESSION_UNAVAILABLE", "This interview session could not be loaded.")
+        return None
 
+    if session_data.get("status") == "COMPLETED":
+        await _reject(websocket, "SESSION_ENDED", "This interview has already ended.")
+        return None
+
+    problem_context = _problem_context(session_data)
     ctx = _InterviewContext(
         session_id=session_id,
         token=token,
-        sm=sm,
-        llm=llm,
-        tts=tts,
+        sm=StateMachine(),
+        llm=create_llm_provider(keys),
+        tts=DeepgramTTSClient(api_key=keys.deepgram),
         problem_context=problem_context,
         language=problem_context.get("language") or "python",
     )
 
-    await _safe(update_session, token, session_id, status="ACTIVE")
+    resumed = False
+    if session_data.get("status") in ("ACTIVE", "INTERRUPTED"):
+        # This process has no memory of it (a restart, or another instance): rebuild from Supabase.
+        try:
+            saved = await asyncio.to_thread(load_resume_state, token, session_id)
+        except Exception as e:
+            logger.error(f"[{session_id}] Could not load the saved interview: {e}")
+            saved = None
+        if saved and saved.get("transcript"):
+            _restore(ctx, saved, session_data.get("started_at"))
+            resumed = True
 
-    disconnected = False
+    # Another connection may have claimed the session while this one was loading.
+    if session_id in _LIVE:
+        await _close_llm(ctx.llm)
+        await _reject(websocket, "SESSION_BUSY", "This interview is still open somewhere else.")
+        return None
+    live = _LiveSession(ctx=ctx, user_id=user_id)
+    _LIVE[session_id] = live
+    return live, resumed
+
+
+async def _resume_turn(ctx: _InterviewContext):
+    """The first turn back after a reconnect: a fixed line, no LLM call. An interview that never got past its intro starts over."""
+    if ctx.sm.current_state == InterviewState.INTRO:
+        await send_intro(ctx)
+        return
+    await _speak_fixed(ctx, RESUME_TEXT, ctx.sm.current_state, "notice")
+
+
+async def _expire(live: _LiveSession, session_id: str):
+    """Nobody came back in time: wrap the interview up as dropped."""
+    if live.running or live.finalizing or _LIVE.get(session_id) is not live:
+        return
+    live.finalizing = True
+    ctx = live.ctx
+    try:
+        await _safe(
+            update_session, ctx.token, session_id,
+            status="INTERRUPTED", completed_at=_now_iso(), total_duration_seconds=_duration_seconds(ctx),
+        )
+        if ctx.user_turns >= MIN_TURNS_FOR_DEBRIEF:
+            # The socket is gone, so the debrief's sends go nowhere. On success it sets the final status.
+            try:
+                await _run_debrief(ctx)
+            except Exception as e:
+                logger.error(f"[{session_id}] Debrief after disconnect failed: {e}", exc_info=True)
+        await _save_session_usage(ctx)
+        await _close_llm(ctx.llm)
+    finally:
+        _LIVE.pop(session_id, None)
+
+
+async def _expire_after(live: _LiveSession, session_id: str, grace_s: float):
+    await asyncio.sleep(grace_s)
+    await _expire(live, session_id)
+
+
+async def handle_interview_websocket(websocket: WebSocket, session_id: str, token: str, user_id: str):
+    """Main WebSocket handler for a single interview session. A reconnect resumes the same interview."""
+    await websocket.accept()
+    claimed = await _claim(websocket, session_id, token, user_id)
+    if claimed is None:
+        return
+    live, resumed = claimed
+    ctx = live.ctx
+    manager.attach(session_id, websocket)
+    logger.info(f"[{session_id}] WebSocket connected, {'resuming' if resumed else 'starting'} interview")
+    await _safe(update_session, ctx.token, session_id, status="ACTIVE")
+
+    if ctx.sm.current_state in (InterviewState.GENERATING_DEBRIEF, InterviewState.COMPLETED):
+        # It dropped while wrapping up: finish the job rather than reopening the conversation.
+        outcome = "ended"
+    else:
+        if resumed:
+            await _try_send(session_id, {"type": "STATE_CHANGED", "state": ctx.sm.current_state.value})
+        first_turn = _resume_turn(ctx) if resumed else send_intro(ctx)
+        outcome = await _interview_loop(ctx, websocket, first_turn)
+
+    await _save_code_snapshot(ctx)
+
+    if outcome == "ended":
+        live.finalizing = True
+        try:
+            await _run_debrief(ctx)
+            await _save_session_usage(ctx)
+        finally:
+            manager.disconnect(session_id, websocket)
+            await _close_llm(ctx.llm)
+            _LIVE.pop(session_id, None)
+        return
+
+    # Dropped, or handed to a newer connection: keep the session for a reconnect.
+    manager.disconnect(session_id, websocket)
+    live.running = False
+    if outcome == "takeover":
+        live.parked.set()
+        return
+    await _safe(update_session, ctx.token, session_id, status="INTERRUPTED")
+    live.parked.set()
+    grace_s = get_settings().resume_grace_s
+    if grace_s <= 0:
+        await _expire(live, session_id)
+    else:
+        logger.info(f"[{session_id}] Holding the interview {grace_s:.0f}s for a reconnect")
+        live.grace_task = asyncio.create_task(_expire_after(live, session_id, grace_s))
+
+
+async def _interview_loop(ctx: _InterviewContext, websocket: WebSocket, first_turn) -> str:
+    """Drive the conversation on one socket. Returns "ended", "dropped" or "takeover"."""
+    session_id = ctx.session_id
+    sm = ctx.sm
+    outcome = "ended"
     recv = None
+    takeover = asyncio.create_task(ctx.takeover.wait())
     try:
         # Turns run as tasks beside this loop, so End, pings and activity are handled while the model is still working.
-        ctx.turn_task = asyncio.create_task(_run_turn(send_intro(ctx)))
+        ctx.turn_task = asyncio.create_task(_run_turn(first_turn))
         recv = asyncio.create_task(websocket.receive_json())
 
         while True:
-            waiters = {recv} if ctx.turn_task is None else {recv, ctx.turn_task}
+            waiters = {recv, takeover} if ctx.turn_task is None else {recv, takeover, ctx.turn_task}
             done, _ = await asyncio.wait(waiters, timeout=CLOCK_TICK_S, return_when=asyncio.FIRST_COMPLETED)
+
+            if takeover in done:
+                logger.info(f"[{session_id}] A newer connection took over the session")
+                outcome = "takeover"
+                break
 
             if ctx.turn_task is not None and ctx.turn_task.done():
                 ctx.turn_task = None
@@ -750,39 +984,18 @@ async def handle_interview_websocket(websocket: WebSocket, session_id: str, toke
 
     except WebSocketDisconnect:
         logger.info(f"[{session_id}] WebSocket disconnected")
-        disconnected = True
+        outcome = "dropped"
     except Exception as e:
         logger.error(f"[{session_id}] Interview loop failed: {e}", exc_info=True)
-        disconnected = True
+        outcome = "dropped"
     finally:
-        pending = [t for t in (recv, ctx.turn_task) if t is not None and not t.done()]
+        pending = [t for t in (recv, ctx.turn_task, takeover) if t is not None and not t.done()]
         for task in pending:
             task.cancel()
         if pending:
             await asyncio.wait(pending)
-
-    await _save_code_snapshot(ctx)
-
-    if disconnected:
-        manager.disconnect(session_id)
-        await _safe(
-            update_session, token, session_id,
-            status="INTERRUPTED", completed_at=_now_iso(), total_duration_seconds=_duration_seconds(ctx),
-        )
-        if ctx.user_turns >= MIN_TURNS_FOR_DEBRIEF:
-            # The socket is gone, so the debrief's sends go nowhere. On success it sets the final status.
-            try:
-                await _run_debrief(ctx)
-            except Exception as e:
-                logger.error(f"[{session_id}] Debrief after disconnect failed: {e}", exc_info=True)
-        await _save_session_usage(ctx)
-        await _close_llm(llm)
-        return
-
-    await _run_debrief(ctx)
-    await _save_session_usage(ctx)
-    manager.disconnect(session_id)
-    await _close_llm(llm)
+        ctx.turn_task = None
+    return outcome
 
 
 async def _close_llm(llm: Any):
@@ -816,7 +1029,7 @@ def build_interview_prompt(state: InterviewState, problem_context: dict, convers
     }
 
     messages = [system_prompt]
-    messages.extend(conversation_history)
+    messages.extend(conversation_history[-HISTORY_WINDOW:])
 
     if user_text:
         user_content = f"Candidate: {user_text}"
