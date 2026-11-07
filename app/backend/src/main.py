@@ -72,7 +72,7 @@ _cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_credentials=True,
+    allow_credentials=False,  # auth is a Bearer header, never a cookie
     allow_methods=["*"],
     allow_headers=["*"],
 )
