@@ -1,5 +1,6 @@
 import type { ErrorCode, InterviewError } from "../types";
 import { AlertIcon, RetryIcon } from "./Icons";
+import { openDashboard } from "./openDashboard";
 
 interface ErrorCardProps {
   error: InterviewError;
@@ -41,6 +42,14 @@ const COPY: Record<ErrorCode, { title: string; fix: string }> = {
     title: "Debrief is taking too long",
     fix: "Your feedback didn't arrive in time. Start a new interview to try again.",
   },
+  KEYS_MISSING: {
+    title: "Add your API keys",
+    fix: "LeeView runs on your own NVIDIA NIM or OpenRouter key and a Deepgram key. Add them on your profile, then try again.",
+  },
+  SESSION_ENDED: {
+    title: "This interview has ended",
+    fix: "Start a new interview to practice again.",
+  },
   TURN_FAILED: {
     title: "The interviewer couldn't respond",
     fix: "Try again. The interview will restart from the beginning.",
@@ -55,6 +64,26 @@ const COPY: Record<ErrorCode, { title: string; fix: string }> = {
 export function ErrorCard({ error, onRetry, onSignIn, onDismiss }: ErrorCardProps) {
   const copy = COPY[error.code] ?? COPY.UNKNOWN;
   const isAuth = error.code === "AUTH_EXPIRED";
+
+  if (error.code === "KEYS_MISSING") {
+    // The server's message says which key is missing or was rejected.
+    return (
+      <div className="lv-stack lv-center">
+        <span className="lv-card-icon lv-card-icon--danger" aria-hidden="true">
+          <AlertIcon />
+        </span>
+        <p className="lv-title" role="alert">{copy.title}</p>
+        <p className="lv-muted">{error.message || copy.fix}</p>
+        <button type="button" className="lv-btn lv-btn--primary lv-btn--block" onClick={() => openDashboard("/profile")}>
+          Open profile
+        </button>
+        <button type="button" className="lv-btn lv-btn--ghost lv-btn--block" onClick={onRetry}>
+          <RetryIcon />
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="lv-stack lv-center">

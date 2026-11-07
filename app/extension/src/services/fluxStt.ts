@@ -2,7 +2,8 @@ import type { Stage } from "../types";
 import type { SttCallbacks, SttClient } from "./stt";
 
 // Type-only imports above, so this module can be loaded by node:test without Vite's env.
-// The API key is passed in by the caller for the same reason.
+// The caller passes a short-lived Deepgram token minted by the backend (see sttToken.ts):
+// the user's Deepgram key never reaches the browser.
 
 export const FLUX_URL =
   "wss://api.deepgram.com/v2/listen?model=flux-general-en&eot_threshold=0.7&eot_timeout_ms=5000";
@@ -61,20 +62,20 @@ export class DeepgramFluxSTT implements SttClient {
   private lastTurnIndex = -1;
   // Events for turns below this index began before the last resume and are dropped.
   private turnFloor = 0;
-  private readonly apiKey: string;
+  private readonly accessToken: string;
 
-  constructor(apiKey: string | undefined) {
-    this.apiKey = apiKey || "";
+  constructor(accessToken: string) {
+    this.accessToken = accessToken;
   }
 
   connect(callbacks: SttCallbacks): Promise<void> {
     this.callbacks = callbacks;
-    if (!this.apiKey) {
-      return Promise.reject(new Error("Missing Deepgram key"));
+    if (!this.accessToken) {
+      return Promise.reject(new Error("Missing Deepgram token"));
     }
 
     return new Promise<void>((resolve, reject) => {
-      const socket = new WebSocket(FLUX_URL, ["token", this.apiKey]);
+      const socket = new WebSocket(FLUX_URL, ["bearer", this.accessToken]);
       this.socket = socket;
       let connected = false;
 

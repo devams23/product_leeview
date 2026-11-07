@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { AuthState, Caption, Debrief, InterviewError, Phase, Stage } from "../types";
-import { InterviewWebSocket, createSession } from "../services/websocket";
+import { InterviewWebSocket, createSession, rejectionError } from "../services/websocket";
 import { DeepgramSTT } from "../services/deepgramStt";
 import { DeepgramFluxSTT } from "../services/fluxStt";
 import type { SttCallbacks, SttClient } from "../services/stt";
-import { DEEPGRAM_API_KEY } from "../env";
-import { makeError, toInterviewError } from "../services/errors";
+import { fetchSttToken } from "../services/sttToken";
+import { TypedError, makeError, toInterviewError } from "../services/errors";
 import { getProblemData, slugFromPath } from "../utils/domScraper";
 import { IntroGate, MIN_CALM_MS } from "./introGate";
 import {
@@ -35,6 +35,11 @@ const DEBRIEF_TIMEOUT_MS = 90_000;
 const SLUG_POLL_MS = 1000;
 const SORRY_TEXT = "Sorry, something glitched — could you repeat that?";
 const PREPARE_FALLBACK_TEXT = "Whenever you're ready, say hello and we'll begin.";
+
+// Server ERROR codes that come just before it closes the socket with code 1008.
+const REFUSALS: ReadonlySet<string> = new Set([
+  "KEYS_MISSING", "SESSION_ENDED", "SESSION_BUSY", "SESSION_UNAVAILABLE",
+]);
 
 const LIVE_PHASES: ReadonlySet<Phase> = new Set<Phase>(["LISTENING", "AI_SPEAKING", "THINKING"]);
 // Phases in which server audio is still played.
@@ -443,6 +448,8 @@ export function useInterview(auth: AuthState): {
 
       case "ERROR":
         console.warn("[LeeView] server error:", msg.code, msg.message);
+        // A refused session: the close that follows carries the reason, handled there.
+        if (REFUSALS.has(msg.code)) return;
         setAiCaption({ speaker: "AI", text: SORRY_TEXT, final: true });
         if (phaseRef.current === "THINKING") applyPhase("LISTENING");
         return;
@@ -475,11 +482,13 @@ export function useInterview(auth: AuthState): {
     }
   }
 
-  function handleSocketClose(ws: InterviewWebSocket) {
+  function handleSocketClose(ws: InterviewWebSocket, ev: CloseEvent) {
     if (wsRef.current !== ws) return;
     wsRef.current = null;
     const p = phaseRef.current;
-    if (p === "GENERATING_DEBRIEF") {
+    if (ev.code === 1008 && p !== "DEBRIEF_READY" && p !== "IDLE" && p !== "ERROR") {
+      fail(toInterviewError(rejectionError(ev.reason), "UNKNOWN"));
+    } else if (p === "GENERATING_DEBRIEF") {
       fail(makeError("DEBRIEF_FAILED", "The connection closed before your debrief was ready."));
     } else if (p === "PREFLIGHT" || p === "CONNECTING" || p === "PREPARING" || LIVE_PHASES.has(p)) {
       fail(makeError("CONNECTION_LOST"));
@@ -557,23 +566,31 @@ export function useInterview(auth: AuthState): {
     };
   }
 
+  /** A fresh short-lived Deepgram token per socket, minted by the backend from the user's key. */
+  function sttToken(): Promise<string> {
+    const token = authRef.current.token;
+    if (!token) return Promise.reject(new TypedError("AUTH_EXPIRED"));
+    return fetchSttToken(token);
+  }
+
   /** Flux first; Nova-3 only when Flux fails to connect at all. Reconnects keep the same class. */
   async function connectStt(
     callbacks: SttCallbacks,
     kind: SttKind,
   ): Promise<{ client: SttClient; kind: SttKind }> {
     if (kind === "nova") {
-      const nova = new DeepgramSTT();
+      const nova = new DeepgramSTT(await sttToken());
       await nova.connect(callbacks);
       return { client: nova, kind: "nova" };
     }
-    const flux = new DeepgramFluxSTT(DEEPGRAM_API_KEY);
+    // Token errors (missing or rejected key, expired sign-in) are not a reason to try Nova-3.
+    const flux = new DeepgramFluxSTT(await sttToken());
     try {
       await flux.connect(callbacks);
       return { client: flux, kind: "flux" };
     } catch {
       console.warn("[LeeView] Flux unavailable, using Nova-3");
-      const nova = new DeepgramSTT();
+      const nova = new DeepgramSTT(await sttToken());
       await nova.connect(callbacks);
       return { client: nova, kind: "nova" };
     }
@@ -608,8 +625,13 @@ export function useInterview(auth: AuthState): {
         syncSending();
         startRecorder(stream, client);
         return;
-      } catch {
-        // Try again while the budget lasts.
+      } catch (err) {
+        // Keys or sign-in problems will not fix themselves on a retry.
+        if (err instanceof TypedError && !err.retryable) {
+          if (gen === generationRef.current) fail(toInterviewError(err, "STT_FAILED"));
+          return;
+        }
+        // Otherwise try again while the budget lasts.
       }
     }
     if (gen === generationRef.current && needsStt(phaseRef.current)) {
@@ -737,7 +759,7 @@ export function useInterview(auth: AuthState): {
           lastServerMsgRef.current = Date.now();
           if (!gateRef.current?.offer(msg)) handleServerMessage(msg);
         },
-        () => handleSocketClose(ws),
+        (ev) => handleSocketClose(ws, ev),
       );
       if (isStale()) return;
 
