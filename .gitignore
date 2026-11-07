@@ -15,3 +15,6 @@ dist/
 app/extension/src/**/*.js
 app2
 .shots/
+
+# Supabase CLI link state (project ref, org, account email)
+supabase/.temp/

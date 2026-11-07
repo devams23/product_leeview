@@ -7,8 +7,6 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      "import.meta.env.VITE_DEEPGRAM_API_KEY": JSON.stringify(env.VITE_DEEPGRAM_API_KEY),
-      "DEEPGRAM_API_KEY": JSON.stringify(env.VITE_DEEPGRAM_API_KEY),
       "import.meta.env.VITE_BACKEND_URL": JSON.stringify(env.VITE_BACKEND_URL || "http://localhost:8000"),
       "import.meta.env.VITE_DASHBOARD_URL": JSON.stringify(env.VITE_DASHBOARD_URL || "http://localhost:5173"),
     },

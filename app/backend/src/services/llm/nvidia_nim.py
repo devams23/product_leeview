@@ -12,10 +12,11 @@ settings = get_settings()
 class NVIDIANIMProvider(LLMProvider):
     """NVIDIA NIM LLM provider implementation."""
 
-    def __init__(self):
-        self.api_key = settings.nvidia_nim_api_key
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+        # A user's own key (BYOK) when given, else the server's key from settings.
+        self.api_key = api_key if api_key is not None else settings.nvidia_nim_api_key
         self.base_url = settings.nvidia_nim_base_url
-        self.model = settings.nvidia_nim_model
+        self.model = model or settings.nvidia_nim_model
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

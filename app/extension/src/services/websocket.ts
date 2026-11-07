@@ -1,5 +1,6 @@
 import { BACKEND_URL, WS_URL } from "../config";
 import { TypedError } from "./errors";
+import { keysError } from "./sttToken";
 
 export class InterviewWebSocket {
   private ws: WebSocket | null = null;
@@ -45,11 +46,7 @@ export class InterviewWebSocket {
       ws.onclose = (ev) => {
         if (this.ws === ws) this.ws = null;
         if (!opened) {
-          reject(
-            ev.code === 1008
-              ? new TypedError("AUTH_EXPIRED")
-              : new TypedError("BACKEND_UNREACHABLE"),
-          );
+          reject(ev.code === 1008 ? rejectionError(ev.reason) : new TypedError("BACKEND_UNREACHABLE"));
           return;
         }
         if (!this.closedByUs) onClose?.(ev);
@@ -73,6 +70,25 @@ export class InterviewWebSocket {
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
       ws.close();
     }
+  }
+}
+
+/**
+ * The backend refuses a socket with close code 1008 and the reason as the close reason.
+ * Without a known reason, 1008 means the token was not accepted.
+ */
+export function rejectionError(reason: string): TypedError {
+  switch (reason) {
+    case "KEYS_MISSING":
+      return new TypedError("KEYS_MISSING");
+    case "SESSION_ENDED":
+      return new TypedError("SESSION_ENDED");
+    case "SESSION_BUSY":
+      return new TypedError("CONNECTION_LOST", "This interview is open in another tab.");
+    case "SESSION_UNAVAILABLE":
+      return new TypedError("BACKEND_UNREACHABLE");
+    default:
+      return new TypedError("AUTH_EXPIRED");
   }
 }
 
@@ -109,6 +125,7 @@ export async function createSession(
   if (res.status === 401 || res.status === 403) {
     throw new TypedError("AUTH_EXPIRED");
   }
+  if (res.status === 412) throw await keysError(res);
   if (!res.ok) {
     if (res.status >= 500) throw new TypedError("BACKEND_UNREACHABLE");
     throw new TypedError("UNKNOWN");

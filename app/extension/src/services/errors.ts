@@ -10,6 +10,8 @@ const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   DEBRIEF_FAILED: "Couldn't generate your debrief.",
   DEBRIEF_TIMEOUT: "Your debrief is taking longer than expected.",
   TURN_FAILED: "The interviewer couldn't respond.",
+  KEYS_MISSING: "Add your API keys in your LeeView profile.",
+  SESSION_ENDED: "This interview has already ended.",
   UNKNOWN: "Something went wrong.",
 };
 
@@ -22,7 +24,7 @@ export class TypedError extends Error {
     super(message ?? DEFAULT_MESSAGES[code]);
     this.name = "TypedError";
     this.code = code;
-    this.retryable = retryable ?? code !== "AUTH_EXPIRED";
+    this.retryable = retryable ?? isRetryable(code);
   }
 }
 
@@ -30,8 +32,13 @@ export function makeError(code: ErrorCode, message?: string): InterviewError {
   return {
     code,
     message: message ?? DEFAULT_MESSAGES[code],
-    retryable: code !== "AUTH_EXPIRED",
+    retryable: isRetryable(code),
   };
+}
+
+/** Errors the user has to fix elsewhere (sign in, add keys) are not offered a plain retry. */
+function isRetryable(code: ErrorCode): boolean {
+  return code !== "AUTH_EXPIRED" && code !== "KEYS_MISSING";
 }
 
 export function toInterviewError(err: unknown, fallback: ErrorCode): InterviewError {

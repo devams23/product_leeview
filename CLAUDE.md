@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
 
-## Project Overview
+## What this is
 
 LeeView turns any LeetCode problem page into a live, voice-driven AI mock interview. A Chrome extension injects an overlay on `leetcode.com/problems/*`, streams the candidate's voice to Deepgram for speech-to-text, sends each utterance plus the current editor code to a FastAPI backend over a WebSocket, and plays the interviewer's streamed TTS reply. When the interview ends the backend generates a scored debrief, saved to Supabase and shown in a React dashboard.
 
@@ -18,16 +18,19 @@ LeeView turns any LeetCode problem page into a live, voice-driven AI mock interv
 ## Commands
 
 ### Extension (`app/extension`)
+
 - `npm run build` — type-checks, then runs four Vite builds (content script, auth bridge, editor bridge, popup + background) into `dist/` and copies `manifest.json`.
 - `npm test` — unit tests via `node --experimental-strip-types --test tests/*.test.ts`. Tests only cover pure modules (no Vite env, no DOM).
 - Load `app/extension/dist/` (not the source folder) with **Load unpacked** at `chrome://extensions/`; rebuild and click reload after changes.
 - Env vars live in `app/extension/.env` (see `.env.example`) and are baked in at build time via Vite `define`.
 
 ### Backend (`app/backend`)
+
 - `pip install -e ".[dev]"` then `uvicorn main:app --reload --port 8000` from `app/backend/src`.
 - `pytest` (config in `pyproject.toml`, `pythonpath = src`). `LLM_PROVIDER=mock` gives canned replies for offline UI work.
 
 ### Dashboard (`app/dashboard`)
+
 - `npm run dev` (port 5173), `npm run build`.
 
 ## Extension Architecture

@@ -3,8 +3,18 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    deepgram_api_key: str
-    nvidia_nim_api_key: str
+    # Server-owned provider keys. Used only when ALLOW_SERVER_KEYS is true (self-hosting / local dev);
+    # otherwise every user brings their own keys from the dashboard profile.
+    deepgram_api_key: str = ""
+    nvidia_nim_api_key: str = ""
+    allow_server_keys: bool = False
+    # Fernet key that encrypts users' saved API keys. Generate one with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    key_encryption_key: str = ""
+    # Lifetime of the Deepgram tokens the extension uses to open its speech-to-text socket.
+    stt_token_ttl_s: int = 60
+    # How long a dropped interview waits for the client to reconnect before it is wrapped up.
+    resume_grace_s: float = 45.0
     nvidia_nim_base_url: str = "https://integrate.api.nvidia.com/v1"
     nvidia_nim_model: str = "nvidia/llama-3.1-nemotron-70b-instruct"
     openrouter_api_key: str = ""
