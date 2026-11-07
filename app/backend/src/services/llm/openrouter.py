@@ -11,10 +11,11 @@ settings = get_settings()
 class OpenRouterProvider(LLMProvider):
     """OpenRouter LLM provider implementation (OpenAI-compatible API)."""
 
-    def __init__(self):
-        self.api_key = settings.openrouter_api_key
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+        # A user's own key (BYOK) when given, else the server's key from settings.
+        self.api_key = api_key if api_key is not None else settings.openrouter_api_key
         self.base_url = settings.openrouter_base_url
-        self.model = settings.openrouter_model
+        self.model = model or settings.openrouter_model
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
