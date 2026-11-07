@@ -28,6 +28,10 @@ const RECORDER_TIMESLICE_MS = 100;
 const ACTIVITY_MS = 2000;
 // Across the whole interview, not per drop.
 const STT_RECONNECT_LIMIT = 3;
+// Interview socket: retries per drop, waiting 1s, 2s, 4s. The backend holds a dropped
+// interview for 45s and resumes it where it stopped.
+const WS_RECONNECT_ATTEMPTS = 3;
+const WS_RECONNECT_BASE_MS = 1000;
 const ELAPSED_TICK_MS = 1000;
 const LEVEL_TICK_MS = 50;
 const DRAIN_PADDING_MS = 150;
@@ -55,6 +59,10 @@ type TimerKey = "flush" | "drain" | "elapsed" | "keepAlive" | "level" | "debrief
 type SttKind = "flux" | "nova";
 /** Holds the client once connected, so its close callback can tell whether it is still current. */
 type SttConnection = { client: SttClient | null };
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
 
 function joinText(a: string, b: string): string {
   return [a.trim(), b.trim()].filter(Boolean).join(" ");
@@ -90,6 +98,8 @@ export function useInterview(auth: AuthState): {
   const [userCaption, setUserCaption] = useState<Caption | null>(null);
   const [debrief, setDebrief] = useState<Debrief | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // Mirrors sessionId for the socket reconnect, which runs outside React's render.
+  const sessionIdRef = useRef<string | null>(null);
   const [error, setError] = useState<InterviewError | null>(null);
   const [slow, setSlow] = useState(false);
 
@@ -490,9 +500,58 @@ export function useInterview(auth: AuthState): {
       fail(toInterviewError(rejectionError(ev.reason), "UNKNOWN"));
     } else if (p === "GENERATING_DEBRIEF") {
       fail(makeError("DEBRIEF_FAILED", "The connection closed before your debrief was ready."));
+    } else if (LIVE_PHASES.has(p) && sessionIdRef.current) {
+      void reconnectSocket(generationRef.current, sessionIdRef.current);
     } else if (p === "PREFLIGHT" || p === "CONNECTING" || p === "PREPARING" || LIVE_PHASES.has(p)) {
       fail(makeError("CONNECTION_LOST"));
     }
+  }
+
+  /**
+   * The interview socket dropped mid-interview (network blip, laptop sleep, server restart).
+   * Reopens it on the same session; the backend resumes from its saved transcript and says so.
+   */
+  async function reconnectSocket(gen: number, session: string) {
+    const isStale = () => gen !== generationRef.current || !LIVE_PHASES.has(phaseRef.current);
+    // Give the heartbeat a fresh window while we retry.
+    lastServerMsgRef.current = Date.now();
+    for (let attempt = 0; attempt < WS_RECONNECT_ATTEMPTS; attempt++) {
+      await delay(WS_RECONNECT_BASE_MS * 2 ** attempt);
+      if (isStale()) return;
+      const token = authRef.current.token;
+      if (!token) {
+        fail(makeError("AUTH_EXPIRED"));
+        return;
+      }
+      const ws = new InterviewWebSocket();
+      wsRef.current = ws;
+      try {
+        await ws.connect(
+          session,
+          token,
+          (msg) => {
+            lastServerMsgRef.current = Date.now();
+            handleServerMessage(msg);
+          },
+          (ev) => handleSocketClose(ws, ev),
+        );
+      } catch (err) {
+        if (wsRef.current === ws) wsRef.current = null;
+        if (isStale()) return;
+        if (err instanceof TypedError && !err.retryable) {
+          fail(toInterviewError(err, "CONNECTION_LOST"));
+          return;
+        }
+        continue;
+      }
+      if (isStale()) {
+        ws.disconnect();
+        return;
+      }
+      lastServerMsgRef.current = Date.now();
+      return;
+    }
+    if (!isStale()) fail(makeError("CONNECTION_LOST"));
   }
 
   // ---- heartbeat ---------------------------------------------------------
@@ -654,6 +713,7 @@ export function useInterview(auth: AuthState): {
     setUserCaption(null);
     setDebrief(null);
     setSessionId(null);
+    sessionIdRef.current = null;
     setError(null);
     setSlow(false);
   }
@@ -667,6 +727,7 @@ export function useInterview(auth: AuthState): {
     const isStale = () => gen !== generationRef.current;
 
     slugRef.current = slugFromPath(window.location.pathname);
+    sessionIdRef.current = null;
     sttReconnectsRef.current = 0;
     sttKindRef.current = "flux";
     setDebrief(null);
@@ -746,6 +807,7 @@ export function useInterview(auth: AuthState): {
       );
       if (isStale()) return;
       setSessionId(newSessionId);
+      sessionIdRef.current = newSessionId;
 
       // The gate is in place before the socket opens, so no opening message can slip past it.
       const gate = new IntroGate<any>();
