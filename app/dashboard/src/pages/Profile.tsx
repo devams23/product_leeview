@@ -10,6 +10,7 @@ import { ErrorBanner } from "../components/ui/ErrorBanner";
 import { Skeleton } from "../components/ui/Skeleton";
 import { buttonClass } from "../components/ui/Button";
 import { ExtensionAction } from "../components/ExtensionAction";
+import { ApiKeys } from "../components/ApiKeys";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -77,6 +78,13 @@ export function Profile() {
           <p className="text-[14px] text-text-2">LeeView for Chrome</p>
           <ExtensionAction />
         </Card>
+      </Section>
+
+      <Section
+        title="API keys"
+        description="LeeView is open source and runs on your own keys. They are encrypted on the server and never shown again."
+      >
+        <ApiKeys />
       </Section>
 
       <Section title="Practice" description="Where you stand right now.">
