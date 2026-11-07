@@ -1,39 +1,25 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
 
-## Project Overview
+## What this is
 
-LeeView (`product_leeview`) is a Chrome browser extension currently in early development. It uses Chrome Extension Manifest V3.
+LeeView: a voice mock interview on LeetCode. A Chrome extension (MV3) talks to a FastAPI backend over one WebSocket; a React dashboard handles sign-in, history and the user's API keys. Users bring their own keys (NVIDIA NIM or OpenRouter, plus Deepgram). See README.md for the flow diagram.
 
-## Project Structure
+## Layout
 
-- `app/client_browser_extension/` — Chrome extension source files
-  - `manifest.json` — Extension manifest (V3), defines permissions and popup behavior
-  - `popup.html` — Extension popup UI
+- `app/extension`: React + Vite, built to `dist/` (`npm run build`), tests with `npm test` (node:test). Load `dist/` unpacked in `chrome://extensions`.
+  - `src/content/useInterview.ts`: the interview lifecycle (mic, STT, socket, playback, reconnect).
+  - `src/services/sttToken.ts`: fetches a short-lived Deepgram token from the backend. Never put provider keys in the extension `.env`: everything there is bundled.
+- `app/dashboard`: React + Vite + Tailwind. `src/components/ApiKeys.tsx` is the BYOK UI.
+- `app/backend`: FastAPI in `src/`, run with `uvicorn main:app --app-dir src`. Tests: `pytest -q` from `app/backend`.
+  - `services/keys.py`: encrypted per-user key store and key resolution.
+  - `services/llm/`: NIM and OpenRouter providers plus `FallbackLLMProvider`.
+  - `websocket/handler.py`: interview loop, resume registry (`_LIVE`), input caps.
+- `supabase/migrations`: apply in order.
 
-## Development Workflow
+## Rules
 
-### Loading the Extension (Local Development)
-
-1. Open Chrome and navigate to `chrome://extensions/`
-2. Enable **Developer mode** (toggle in the top-right)
-3. Click **Load unpacked** and select the `app/client_browser_extension/` directory
-4. The extension will appear in your toolbar; click it to test the popup
-
-### Making Changes
-
-- Edit files in `app/client_browser_extension/` directly — no build step is currently configured
-- After saving changes, click the refresh icon on the extension card at `chrome://extensions/` to reload
-- For `manifest.json` changes, the extension must be reloaded manually
-
-## Architecture Notes
-
-- **Manifest V3**: The extension follows Chrome's Manifest V3 format. Key implications:
-  - Service workers are used for background scripts (not persistent background pages)
-  - Content security policy is stricter than V2
-  - `activeTab` permission is currently granted for accessing the current tab when the user invokes the extension
-
-## Current State
-
-This is a minimal starter extension with a single popup. Build tooling, testing, and CI are not yet configured.
+- Tests never call real AI or voice APIs. Script provider HTTP with `tests/fakes.py` (`ScriptedAPI`, `FakeSupabase`).
+- Provider keys come from `resolve_keys(user_id)`; server keys are used only when `ALLOW_SERVER_KEYS=true`.
+- Never log or return a stored key; responses carry masked hints only.
