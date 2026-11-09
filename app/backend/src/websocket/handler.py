@@ -788,7 +788,7 @@ async def _claim(websocket: WebSocket, session_id: str, token: str, user_id: str
         keys = await asyncio.to_thread(resolve_keys, user_id)
     except KeyStoreUnavailable:
         logger.error(f"[{session_id}] KEY_ENCRYPTION_KEY is not configured; user keys cannot be read")
-        await _reject(websocket, "KEYS_MISSING", KEY_STORE_MESSAGE)
+        await _reject(websocket, "KEY_STORE_UNAVAILABLE", KEY_STORE_MESSAGE)
         return None
     except Exception as e:
         logger.error(f"[{session_id}] Could not load the user's keys: {type(e).__name__}")
