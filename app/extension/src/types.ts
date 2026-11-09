@@ -5,7 +5,7 @@ export type Stage = "INTRO" | "AWAITING_CLARIFICATION" | "AWAITING_APPROACH" | "
   | "AWAITING_WALKTHROUGH" | "CONCLUDING" | "GENERATING_DEBRIEF" | "COMPLETED";
 export type ErrorCode = "MIC_DENIED" | "MIC_UNAVAILABLE" | "BACKEND_UNREACHABLE" | "AUTH_EXPIRED"
   | "STT_FAILED" | "CONNECTION_LOST" | "DEBRIEF_FAILED" | "DEBRIEF_TIMEOUT" | "TURN_FAILED" | "KEYS_MISSING"
-  | "SESSION_ENDED" | "UNKNOWN";
+  | "KEY_REJECTED" | "SERVER_SETUP" | "SESSION_ENDED" | "UNKNOWN";
 export interface InterviewError { code: ErrorCode; message: string; retryable: boolean }
 export interface Caption { speaker: "AI" | "USER"; text: string; final: boolean }
 export interface Debrief {
