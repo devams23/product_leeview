@@ -179,3 +179,27 @@ def test_mint_stt_token_rejected_key():
     transport = httpx.MockTransport(lambda r: httpx.Response(401, json={"err": "bad"}))
     with pytest.raises(deepgram.DeepgramKeyRejected):
         asyncio.run(deepgram.mint_stt_token(DG_KEY, transport=transport))
+
+
+def test_missing_keys_message_says_what_to_add():
+    from services.keys import missing_keys_message
+
+    assert "Deepgram" in missing_keys_message(["deepgram"])
+    assert "NVIDIA NIM or OpenRouter" in missing_keys_message(["llm"])
+    both = missing_keys_message(["llm", "deepgram"])
+    assert "Deepgram" in both and "OpenRouter" in both
+
+
+def test_rejected_key_message_only_for_auth_failures():
+    import httpx
+
+    from services.keys import rejected_key_message
+
+    def error(status, url):
+        request = httpx.Request("POST", url)
+        return httpx.HTTPStatusError("x", request=request, response=httpx.Response(status, request=request))
+
+    assert rejected_key_message(error(401, "https://openrouter.ai/api/v1/chat/completions")).startswith("OpenRouter")
+    assert rejected_key_message(error(403, "https://integrate.api.nvidia.com/v1/chat")).startswith("NVIDIA NIM")
+    assert rejected_key_message(error(503, "https://openrouter.ai/api/v1/chat/completions")) is None
+    assert rejected_key_message(RuntimeError("boom")) is None

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
+import httpx
 from cryptography.fernet import Fernet, InvalidToken
 
 from config import get_settings
@@ -39,6 +40,40 @@ class MissingKeysError(Exception):
 
 class KeyStoreUnavailable(Exception):
     """KEY_ENCRYPTION_KEY is not configured, so keys cannot be stored or read."""
+
+
+KEY_STORE_MESSAGE = (
+    "This LeeView server can't read saved API keys yet: KEY_ENCRYPTION_KEY is not set. "
+    "If you run the server, set it in the backend .env and restart."
+)
+
+
+def missing_keys_message(missing: list[str]) -> str:
+    """Says which key the user still has to add, and what it is for."""
+    if "llm" in missing and "deepgram" in missing:
+        return (
+            "No API keys yet. Add a Deepgram key and an NVIDIA NIM or OpenRouter key "
+            "on your LeeView profile, then start the interview."
+        )
+    if "deepgram" in missing:
+        return "Your Deepgram key is missing. Add it on your LeeView profile: it hears you and gives the interviewer a voice."
+    return "Your AI key is missing. Add an NVIDIA NIM or OpenRouter key on your LeeView profile: it runs the interviewer."
+
+
+def rejected_key_message(exc: BaseException) -> Optional[str]:
+    """If a provider refused the user's key (HTTP 401/403), says which one. Otherwise None."""
+    if not isinstance(exc, httpx.HTTPStatusError) or exc.response.status_code not in (401, 403):
+        return None
+    host = exc.request.url.host or ""
+    if "nvidia" in host:
+        name = "NVIDIA NIM"
+    elif "openrouter" in host:
+        name = "OpenRouter"
+    elif "deepgram" in host:
+        name = "Deepgram"
+    else:
+        name = "Your AI provider"
+    return f"{name} rejected your API key. Check or replace it on your LeeView profile."
 
 
 @dataclass(frozen=True)

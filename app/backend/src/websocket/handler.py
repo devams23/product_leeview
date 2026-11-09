@@ -18,7 +18,13 @@ from websocket.clock import timed_action
 from services.llm import create_llm_provider
 from services.llm.streaming import ReplyParser, interview_stream_instructions
 from services.deepgram import DeepgramTTSClient
-from services.keys import KeyStoreUnavailable, resolve_keys
+from services.keys import (
+    KEY_STORE_MESSAGE,
+    KeyStoreUnavailable,
+    missing_keys_message,
+    rejected_key_message,
+    resolve_keys,
+)
 from services.supabase_client import (
     get_session,
     load_resume_state,
@@ -287,6 +293,15 @@ async def _save_session_usage(ctx: _InterviewContext):
 SILENCE_IN_HISTORY = "(listens quietly)"
 
 
+async def _send_llm_failure(sid: str, error: BaseException, message: str):
+    """A failed turn. A key the provider refused is reported as KEY_REJECTED, so the user knows to fix it."""
+    rejected = rejected_key_message(error)
+    if rejected:
+        await _try_send(sid, {"type": "ERROR", "code": "KEY_REJECTED", "message": rejected})
+    else:
+        await _try_send(sid, {"type": "ERROR", "code": "LLM_FAILED", "message": message})
+
+
 async def _send_tts_failed(sid: str):
     await _try_send(sid, {
         "type": "ERROR",
@@ -477,7 +492,7 @@ async def send_intro(ctx: _InterviewContext):
         await _stream_turn(ctx, messages, InterviewState.INTRO, "intro")
     except Exception as e:
         logger.error(f"[{sid}] Intro LLM call failed: {e}")
-        await _try_send(sid, {"type": "ERROR", "code": "LLM_FAILED", "message": "The interviewer could not start. Please try again."})
+        await _send_llm_failure(sid, e, "The interviewer could not start. Please try again.")
         await _try_send(sid, {"type": "STATE_CHANGED", "state": ctx.sm.current_state.value})
         await _try_send(sid, {"type": "AUDIO_FINISHED"})
         return
@@ -520,7 +535,7 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
         await _stream_turn(ctx, messages, state_before, "reply")
     except Exception as e:
         logger.error(f"[{sid}] LLM call failed: {e}")
-        await _try_send(sid, {"type": "ERROR", "code": "LLM_FAILED", "message": "The interviewer could not respond. Please try again."})
+        await _send_llm_failure(sid, e, "The interviewer could not respond. Please try again.")
         await _try_send(sid, {"type": "AUDIO_FINISHED"})
 
 
@@ -773,7 +788,7 @@ async def _claim(websocket: WebSocket, session_id: str, token: str, user_id: str
         keys = await asyncio.to_thread(resolve_keys, user_id)
     except KeyStoreUnavailable:
         logger.error(f"[{session_id}] KEY_ENCRYPTION_KEY is not configured; user keys cannot be read")
-        await _reject(websocket, "KEYS_MISSING", "Key storage is not configured on the server.")
+        await _reject(websocket, "KEYS_MISSING", KEY_STORE_MESSAGE)
         return None
     except Exception as e:
         logger.error(f"[{session_id}] Could not load the user's keys: {type(e).__name__}")
@@ -783,7 +798,7 @@ async def _claim(websocket: WebSocket, session_id: str, token: str, user_id: str
     if settings.llm_provider.lower() == "mock":
         missing = [m for m in missing if m != "llm"]
     if missing:
-        await _reject(websocket, "KEYS_MISSING", "Add your API keys in your LeeView profile.")
+        await _reject(websocket, "KEYS_MISSING", missing_keys_message(missing))
         return None
 
     try:

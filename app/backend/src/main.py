@@ -15,7 +15,9 @@ from websocket.handler import handle_interview_websocket
 from services.deepgram import DeepgramKeyRejected, mint_stt_token
 from services.keys import (
     PROVIDERS as KEY_PROVIDERS,
+    KEY_STORE_MESSAGE,
     KeyStoreUnavailable,
+    missing_keys_message,
     ResolvedKeys,
     delete_key,
     key_status,
@@ -104,7 +106,7 @@ def _keys_for(user_id: str) -> ResolvedKeys:
         return resolve_keys(user_id)
     except KeyStoreUnavailable:
         logger.error("KEY_ENCRYPTION_KEY is not configured; user keys cannot be read")
-        raise HTTPException(status_code=503, detail={"code": "KEY_STORE_UNAVAILABLE", "message": "Key storage is not configured on the server."})
+        raise HTTPException(status_code=503, detail={"code": "KEY_STORE_UNAVAILABLE", "message": KEY_STORE_MESSAGE})
 
 
 def _require_keys(keys: ResolvedKeys, needs_llm: bool = True) -> None:
@@ -114,7 +116,7 @@ def _require_keys(keys: ResolvedKeys, needs_llm: bool = True) -> None:
     if missing:
         raise HTTPException(
             status_code=412,
-            detail={"code": "KEYS_MISSING", "missing": missing, "message": "Add your API keys in your LeeView profile."},
+            detail={"code": "KEYS_MISSING", "missing": missing, "message": missing_keys_message(missing)},
         )
 
 
@@ -143,7 +145,7 @@ async def save_my_key(provider: str, req: SaveKeyRequest, user: TokenPayload = D
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except KeyStoreUnavailable:
-        raise HTTPException(status_code=503, detail="Key storage is not configured on the server.")
+        raise HTTPException(status_code=503, detail=KEY_STORE_MESSAGE)
     except Exception as exc:
         logger.error(f"Could not save a {provider} key: {type(exc).__name__}")
         raise HTTPException(status_code=502, detail="Could not save your key")
@@ -172,7 +174,7 @@ async def stt_token(user: TokenPayload = Depends(get_current_user)):
     except DeepgramKeyRejected:
         raise HTTPException(
             status_code=412,
-            detail={"code": "KEY_REJECTED", "missing": ["deepgram"], "message": "Deepgram rejected your key. Check it in your LeeView profile."},
+            detail={"code": "KEY_REJECTED", "missing": ["deepgram"], "message": "Deepgram rejected your API key. Check or replace it on your LeeView profile."},
         )
     except Exception as exc:
         logger.error(f"Could not mint a Deepgram token: {type(exc).__name__}: {exc}")
