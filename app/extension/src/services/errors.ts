@@ -10,7 +10,9 @@ const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   DEBRIEF_FAILED: "Couldn't generate your debrief.",
   DEBRIEF_TIMEOUT: "Your debrief is taking longer than expected.",
   TURN_FAILED: "The interviewer couldn't respond.",
-  KEYS_MISSING: "Add your API keys in your LeeView profile.",
+  KEYS_MISSING: "Add a Deepgram key and an NVIDIA NIM or OpenRouter key on your LeeView profile.",
+  KEY_REJECTED: "One of your API keys was rejected. Check it on your LeeView profile.",
+  SERVER_SETUP: "This LeeView server isn't set up to read API keys yet.",
   SESSION_ENDED: "This interview has already ended.",
   UNKNOWN: "Something went wrong.",
 };
@@ -38,7 +40,7 @@ export function makeError(code: ErrorCode, message?: string): InterviewError {
 
 /** Errors the user has to fix elsewhere (sign in, add keys) are not offered a plain retry. */
 function isRetryable(code: ErrorCode): boolean {
-  return code !== "AUTH_EXPIRED" && code !== "KEYS_MISSING";
+  return code !== "AUTH_EXPIRED" && code !== "KEYS_MISSING" && code !== "KEY_REJECTED";
 }
 
 export function toInterviewError(err: unknown, fallback: ErrorCode): InterviewError {

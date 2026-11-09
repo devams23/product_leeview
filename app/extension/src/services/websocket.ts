@@ -1,10 +1,13 @@
 import { BACKEND_URL, WS_URL } from "../config";
 import { TypedError } from "./errors";
 import { keysError } from "./sttToken";
+import { REFUSAL_CODES, refusalProblem } from "./serverErrors";
 
 export class InterviewWebSocket {
   private ws: WebSocket | null = null;
   private closedByUs = false;
+  /** The server's explanation when it refuses the socket; the close frame only carries a code. */
+  refusalMessage: string | undefined;
 
   /**
    * Opens the interview socket. Resolves once open; rejects with a TypedError if the
@@ -35,7 +38,11 @@ export class InterviewWebSocket {
             onMessage({ type: "AUDIO_CHUNK", pcm: event.data });
             return;
           }
-          onMessage(JSON.parse(event.data));
+          const msg = JSON.parse(event.data);
+          if (msg?.type === "ERROR" && REFUSAL_CODES.has(msg.code) && typeof msg.message === "string") {
+            this.refusalMessage = msg.message;
+          }
+          onMessage(msg);
         } catch (e) {
           console.error("[LeeView] WS message error:", e);
         }
@@ -46,7 +53,7 @@ export class InterviewWebSocket {
       ws.onclose = (ev) => {
         if (this.ws === ws) this.ws = null;
         if (!opened) {
-          reject(ev.code === 1008 ? rejectionError(ev.reason) : new TypedError("BACKEND_UNREACHABLE"));
+          reject(ev.code === 1008 ? rejectionError(ev.reason, this.refusalMessage) : new TypedError("BACKEND_UNREACHABLE"));
           return;
         }
         if (!this.closedByUs) onClose?.(ev);
@@ -74,22 +81,12 @@ export class InterviewWebSocket {
 }
 
 /**
- * The backend refuses a socket with close code 1008 and the reason as the close reason.
- * Without a known reason, 1008 means the token was not accepted.
+ * The backend refuses a socket with close code 1008 and the refusal code as the close reason.
+ * `message` is the ERROR text sent just before, e.g. which key is missing.
  */
-export function rejectionError(reason: string): TypedError {
-  switch (reason) {
-    case "KEYS_MISSING":
-      return new TypedError("KEYS_MISSING");
-    case "SESSION_ENDED":
-      return new TypedError("SESSION_ENDED");
-    case "SESSION_BUSY":
-      return new TypedError("CONNECTION_LOST", "This interview is open in another tab.");
-    case "SESSION_UNAVAILABLE":
-      return new TypedError("BACKEND_UNREACHABLE");
-    default:
-      return new TypedError("AUTH_EXPIRED");
-  }
+export function rejectionError(reason: string, message?: string): TypedError {
+  const problem = refusalProblem(reason, message);
+  return new TypedError(problem.code, problem.message);
 }
 
 export async function createSession(
@@ -125,8 +122,9 @@ export async function createSession(
   if (res.status === 401 || res.status === 403) {
     throw new TypedError("AUTH_EXPIRED");
   }
-  if (res.status === 412) throw await keysError(res);
   if (!res.ok) {
+    const keys = await keysError(res);
+    if (keys) throw keys;
     if (res.status >= 500) throw new TypedError("BACKEND_UNREACHABLE");
     throw new TypedError("UNKNOWN");
   }

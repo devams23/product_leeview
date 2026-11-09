@@ -46,6 +46,14 @@ const COPY: Record<ErrorCode, { title: string; fix: string }> = {
     title: "Add your API keys",
     fix: "LeeView runs on your own NVIDIA NIM or OpenRouter key and a Deepgram key. Add them on your profile, then try again.",
   },
+  KEY_REJECTED: {
+    title: "An API key was rejected",
+    fix: "One of your keys was turned down by its provider. Check it or paste a new one on your profile, then try again.",
+  },
+  SERVER_SETUP: {
+    title: "The server isn't set up yet",
+    fix: "This LeeView server can't read saved API keys. Whoever runs it needs to set KEY_ENCRYPTION_KEY and restart it.",
+  },
   SESSION_ENDED: {
     title: "This interview has ended",
     fix: "Start a new interview to practice again.",
@@ -65,7 +73,7 @@ export function ErrorCard({ error, onRetry, onSignIn, onDismiss }: ErrorCardProp
   const copy = COPY[error.code] ?? COPY.UNKNOWN;
   const isAuth = error.code === "AUTH_EXPIRED";
 
-  if (error.code === "KEYS_MISSING") {
+  if (error.code === "KEYS_MISSING" || error.code === "KEY_REJECTED") {
     // The server's message says which key is missing or was rejected.
     return (
       <div className="lv-stack lv-center">
@@ -91,7 +99,7 @@ export function ErrorCard({ error, onRetry, onSignIn, onDismiss }: ErrorCardProp
         <AlertIcon />
       </span>
       <p className="lv-title" role="alert">{copy.title}</p>
-      <p className="lv-muted">{copy.fix}</p>
+      <p className="lv-muted">{error.code === "SERVER_SETUP" ? error.message || copy.fix : copy.fix}</p>
 
       {isAuth ? (
         <button type="button" className="lv-btn lv-btn--primary lv-btn--block" onClick={onSignIn}>

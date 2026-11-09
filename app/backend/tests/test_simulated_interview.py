@@ -344,3 +344,52 @@ def test_prompt_history_is_windowed():
     messages = handler.build_interview_prompt(handler.InterviewState.AWAITING_CODE, {}, history, "now", "")
     assert len(messages) == 1 + handler.HISTORY_WINDOW + 1
     assert messages[1]["content"] == f"m{200 - handler.HISTORY_WINDOW}"
+
+
+def test_mock_provider_interview_moves_through_every_stage(env, monkeypatch):
+    # LLM_PROVIDER=mock replays sample_responses/. Each streamed reply must name its next state,
+    # or the interview never leaves INTRO and the intro line repeats on every turn.
+    monkeypatch.setattr(get_settings(), "llm_provider", "mock")
+    incoming = []
+    for i in range(len(CANDIDATE)):
+        incoming += [AfterSent("AUDIO_FINISHED", i + 1), utterance(i)]
+    ws = FakeWebSocket(incoming)
+
+    asyncio.run(asyncio.wait_for(connect(ws), 5))
+
+    states = [m["state"] for m in ws.sent if m["type"] == "STATE_CHANGED"]
+    assert states == [
+        "AWAITING_CLARIFICATION", "AWAITING_APPROACH", "AWAITING_CODE",
+        "AWAITING_WALKTHROUGH", "CONCLUDING", "GENERATING_DEBRIEF",
+    ]
+    lines = [args[3] for args, _ in env.named("log_transcript") if args[2] == "AI"]
+    assert len(lines) >= 6 and len(lines) == len(set(lines)), "no canned line is spoken twice"
+    assert len([m for m in ws.sent if m["type"] == "DEBRIEF_READY"]) == 1
+
+
+def test_missing_key_message_names_the_key(recorded, monkeypatch):
+    monkeypatch.setattr(handler, "resolve_keys", lambda user_id: ResolvedKeys(nvidia_nim="nim"))
+    ws = FakeWebSocket([])
+    asyncio.run(asyncio.wait_for(connect(ws), 2))
+    assert ws.sent[0]["code"] == "KEYS_MISSING"
+    assert "Deepgram" in ws.sent[0]["message"]
+
+
+def test_a_rejected_llm_key_is_reported_as_a_key_problem(env, monkeypatch):
+    # The user's only model key is wrong: NVIDIA answers 401 on every call.
+    monkeypatch.setattr(handler, "resolve_keys", lambda user_id: ResolvedKeys(nvidia_nim="bad-key", deepgram="dg"))
+    nim_api = ScriptedAPI(down(401))
+
+    def create(keys=None):
+        llm = factory.create_llm_provider(keys)
+        nim_api.attach(llm)
+        return llm
+
+    monkeypatch.setattr(handler, "create_llm_provider", create)
+    ws = FakeWebSocket([AfterSent("ERROR", 1), WebSocketDisconnect()])
+    asyncio.run(asyncio.wait_for(connect(ws), 5))
+
+    errors = [m for m in ws.sent if m["type"] == "ERROR"]
+    assert errors[0]["code"] == "KEY_REJECTED"
+    assert "NVIDIA NIM rejected your API key" in errors[0]["message"]
+    assert "bad-key" not in json.dumps(ws.sent)

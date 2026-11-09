@@ -5,6 +5,7 @@ import { DeepgramSTT } from "../services/deepgramStt";
 import { DeepgramFluxSTT } from "../services/fluxStt";
 import type { SttCallbacks, SttClient } from "../services/stt";
 import { fetchSttToken } from "../services/sttToken";
+import { REFUSAL_CODES } from "../services/serverErrors";
 import { TypedError, makeError, toInterviewError } from "../services/errors";
 import { getProblemData, slugFromPath } from "../utils/domScraper";
 import { IntroGate, MIN_CALM_MS } from "./introGate";
@@ -39,11 +40,6 @@ const DEBRIEF_TIMEOUT_MS = 90_000;
 const SLUG_POLL_MS = 1000;
 const SORRY_TEXT = "Sorry, something glitched — could you repeat that?";
 const PREPARE_FALLBACK_TEXT = "Whenever you're ready, say hello and we'll begin.";
-
-// Server ERROR codes that come just before it closes the socket with code 1008.
-const REFUSALS: ReadonlySet<string> = new Set([
-  "KEYS_MISSING", "SESSION_ENDED", "SESSION_BUSY", "SESSION_UNAVAILABLE",
-]);
 
 const LIVE_PHASES: ReadonlySet<Phase> = new Set<Phase>(["LISTENING", "AI_SPEAKING", "THINKING"]);
 // Phases in which server audio is still played.
@@ -475,7 +471,12 @@ export function useInterview(auth: AuthState): {
       case "ERROR":
         console.warn("[LeeView] server error:", msg.code, msg.message);
         // A refused session: the close that follows carries the reason, handled there.
-        if (REFUSALS.has(msg.code)) return;
+        if (REFUSAL_CODES.has(msg.code)) return;
+        // The provider refused the user's key: no retry will help until it is fixed on the profile.
+        if (msg.code === "KEY_REJECTED") {
+          fail(makeError("KEY_REJECTED", typeof msg.message === "string" ? msg.message : undefined));
+          return;
+        }
         setAiCaption({ speaker: "AI", text: SORRY_TEXT, final: true });
         if (phaseRef.current === "THINKING") applyPhase("LISTENING");
         return;
@@ -516,7 +517,7 @@ export function useInterview(auth: AuthState): {
     wsRef.current = null;
     const p = phaseRef.current;
     if (ev.code === 1008 && p !== "DEBRIEF_READY" && p !== "IDLE" && p !== "ERROR") {
-      fail(toInterviewError(rejectionError(ev.reason), "UNKNOWN"));
+      fail(toInterviewError(rejectionError(ev.reason, ws.refusalMessage), "UNKNOWN"));
     } else if (p === "GENERATING_DEBRIEF") {
       fail(makeError("DEBRIEF_FAILED", "The connection closed before your debrief was ready."));
     } else if (LIVE_PHASES.has(p) && sessionIdRef.current) {
