@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import Any
+from typing import Any, AsyncIterator
 from pathlib import Path
 
 from services.llm.base import LLMProvider
@@ -43,6 +43,19 @@ class MockLLMProvider(LLMProvider):
     ) -> str:
         """Generate a chat completion response (not used in structured mode)."""
         return await self._get_response_text(messages)
+
+    async def stream(
+        self, messages: list[dict[str, str]], temperature: float = 0.6, max_tokens: int = 400
+    ) -> AsyncIterator[str]:
+        """Yield the sample reply in the streaming format: a `STATE:` line, then the spoken text.
+
+        Live turns are streamed, and the state comes only from that first line. Without it the
+        interview would never leave INTRO and the intro sample would repeat on every turn.
+        """
+        data = await self.generate_structured(messages, {})
+        current = self._extract_state_from_messages(messages)
+        next_state = data.get("next_state") or self._get_next_state(current).value
+        yield f"STATE: {next_state}\n{data.get('response_text', '')}"
 
     async def generate_structured(
         self,

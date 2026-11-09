@@ -344,3 +344,24 @@ def test_prompt_history_is_windowed():
     messages = handler.build_interview_prompt(handler.InterviewState.AWAITING_CODE, {}, history, "now", "")
     assert len(messages) == 1 + handler.HISTORY_WINDOW + 1
     assert messages[1]["content"] == f"m{200 - handler.HISTORY_WINDOW}"
+
+
+def test_mock_provider_interview_moves_through_every_stage(env, monkeypatch):
+    # LLM_PROVIDER=mock replays sample_responses/. Each streamed reply must name its next state,
+    # or the interview never leaves INTRO and the intro line repeats on every turn.
+    monkeypatch.setattr(get_settings(), "llm_provider", "mock")
+    incoming = []
+    for i in range(len(CANDIDATE)):
+        incoming += [AfterSent("AUDIO_FINISHED", i + 1), utterance(i)]
+    ws = FakeWebSocket(incoming)
+
+    asyncio.run(asyncio.wait_for(connect(ws), 5))
+
+    states = [m["state"] for m in ws.sent if m["type"] == "STATE_CHANGED"]
+    assert states == [
+        "AWAITING_CLARIFICATION", "AWAITING_APPROACH", "AWAITING_CODE",
+        "AWAITING_WALKTHROUGH", "CONCLUDING", "GENERATING_DEBRIEF",
+    ]
+    lines = [args[3] for args, _ in env.named("log_transcript") if args[2] == "AI"]
+    assert len(lines) >= 6 and len(lines) == len(set(lines)), "no canned line is spoken twice"
+    assert len([m for m in ws.sent if m["type"] == "DEBRIEF_READY"]) == 1
