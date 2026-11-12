@@ -1,6 +1,7 @@
 import type { MutableRefObject, PointerEvent } from "react";
 import type { PositionStyle } from "../hooks/usePersistentPosition";
 import { formatClock } from "./format";
+import { BrandMark } from "./BrandMark";
 
 interface LauncherProps {
   shellRef: MutableRefObject<HTMLElement | null>;
@@ -32,7 +33,7 @@ export function Launcher({
         aria-label={live ? `Show LeeView, interview live, ${clock} elapsed` : "Show LeeView"}
         title="Show LeeView"
       >
-        <span className={live ? "lv-mark lv-mark--live" : "lv-mark"} aria-hidden="true" />
+        <BrandMark live={live} />
         <span className="lv-launcher-label">LeeView</span>
         {live ? <span className="lv-launcher-detail lv-launcher-detail--timer">{clock}</span> : null}
       </button>
