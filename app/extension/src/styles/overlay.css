@@ -191,27 +191,20 @@
   white-space: nowrap;
 }
 
-/* Brand mark: same as the dashboard (spec: brand unify). */
+/* Brand mark: the L mark, same as the dashboard and the toolbar icon. */
 .lv-mark {
-  position: relative;
-  display: grid;
-  place-items: center;
+  display: block;
   flex: none;
   width: 18px;
   height: 18px;
-  border-radius: 6px;
-  background: var(--signal);
 }
 
-.lv-mark::after {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ink-0);
+.lv-mark-dot {
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
-.lv-mark--live::after {
+.lv-mark--live .lv-mark-dot {
   animation: lv-pulse 1.6s ease-in-out infinite;
 }
 

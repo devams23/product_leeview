@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" alt="LeeView" width="88" />
+  <img src="logo.svg" alt="LeeView" width="88" />
   <h1>LeeView</h1>
   <p><b>A voice mock interview on any LeetCode problem.</b></p>
 </div>

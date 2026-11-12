@@ -2,9 +2,11 @@ import { Fragment, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/ui/Button";
-import { Brand } from "../components/ui/BrandMark";
+import { Brand, BrandMark } from "../components/ui/BrandMark";
 import { InterviewOrb, useInterviewScript } from "../components/landing/InterviewOrb";
 import { ExtensionAction } from "../components/ExtensionAction";
+
+const NAV = [["Install", "#install"], ["How it works", "#how"], ["Debrief", "#debrief"]] as const;
 
 const SETUP_STEPS = [
   { title: "Add LeeView to Chrome", body: "Install it from the Chrome Web Store." },
@@ -219,13 +221,13 @@ export function Login() {
 
   return (
     <div className="relative min-h-screen overflow-x-clip bg-ink-0">
-      <header className="relative z-20">
-        <div className="mx-auto grid h-[72px] max-w-[1200px] grid-cols-[1fr_auto] items-center px-5 sm:grid-cols-[1fr_auto_1fr] sm:px-8">
+      <header className="sticky top-0 z-30 border-b border-line bg-ink-0/80 backdrop-blur-md">
+        <div className="mx-auto grid h-[68px] max-w-[1200px] grid-cols-[1fr_auto] items-center px-5 sm:grid-cols-[1fr_auto_1fr] sm:px-8">
           <a href="#top" aria-label="LeeView home" className="justify-self-start">
             <Brand size={28} />
           </a>
           <nav aria-label="Page" className="hidden rounded-full border border-line-2 bg-ink-1/80 p-1 sm:flex">
-            {[["Install", "#install"], ["How it works", "#how"], ["Debrief", "#debrief"]].map(([label, href]) => (
+            {NAV.map(([label, href]) => (
               <a
                 key={href}
                 href={href}
@@ -235,16 +237,30 @@ export function Login() {
               </a>
             ))}
           </nav>
-          <Button variant="ghost" size="md" onClick={handleSignIn} disabled={busy} className="justify-self-end">
-            Sign in
-          </Button>
+          <div className="flex items-center gap-2 justify-self-end">
+            <button
+              type="button"
+              onClick={handleSignIn}
+              disabled={busy}
+              className="hidden h-10 px-3 text-sm text-text-2 transition-colors hover:text-text-1 disabled:opacity-40 sm:block"
+            >
+              Sign in
+            </button>
+            <Button variant="primary" size="md" onClick={handleSignIn} disabled={busy}>
+              Start interview
+            </Button>
+          </div>
         </div>
       </header>
 
       <main id="top" className="relative">
         <section className="mx-auto flex max-w-[1000px] flex-col items-center px-5 pt-14 text-center sm:px-8 sm:pt-20">
           <div className="lv-rise relative z-10 flex flex-col items-center gap-5">
-            <p className="flex items-center gap-2.5 text-[14px] text-text-2">
+            <p className="flex items-center gap-3 rounded-full border border-line-2 bg-ink-1/80 py-1.5 pl-1.5 pr-4 text-[13px] text-text-2">
+              <span className="flex items-center gap-2 rounded-full bg-ink-3 py-1 pl-1 pr-2.5 font-medium text-text-1">
+                <BrandMark size={18} />
+                For Chrome
+              </span>
               <WaveGlyph />
               Voice mock interviews for LeetCode
             </p>
@@ -380,9 +396,19 @@ export function Login() {
               className="items-start lg:items-end lg:pb-3"
             />
           </div>
-          <div className="flex items-center justify-between pb-8 text-[13px] text-text-3">
-            <Brand size={22} />
-            <span>© 2026 LeeView</span>
+          <div className="flex flex-col gap-6 border-t border-line py-8 text-[13px] text-text-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <Brand size={24} />
+              <span className="hidden sm:inline">Voice mock interviews for LeetCode</span>
+            </div>
+            <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              {NAV.map(([label, href]) => (
+                <a key={href} href={href} className="transition-colors hover:text-text-1">
+                  {label}
+                </a>
+              ))}
+              <span>© 2026 LeeView</span>
+            </nav>
           </div>
         </div>
       </footer>

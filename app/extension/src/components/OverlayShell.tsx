@@ -1,6 +1,7 @@
 import type { MutableRefObject, PointerEvent, ReactNode } from "react";
 import type { PositionStyle } from "../hooks/usePersistentPosition";
 import { MinusIcon } from "./Icons";
+import { BrandMark } from "./BrandMark";
 
 interface OverlayShellProps {
   shellRef: MutableRefObject<HTMLElement | null>;
@@ -24,7 +25,7 @@ export function OverlayShell({
       aria-label="LeeView interview panel"
     >
       <header className="lv-header" onPointerDown={onPointerDown}>
-        <span className={live ? "lv-mark lv-mark--live" : "lv-mark"} aria-hidden="true" />
+        <BrandMark live={live} />
         <span className="lv-wordmark">LeeView</span>
         <button
           type="button"
