@@ -7,6 +7,7 @@ import "@fontsource/jetbrains-mono/latin-500.css";
 import "./popup.css";
 import { BACKEND_URL } from "../config";
 import { decodeJwtExp } from "../utils/jwt";
+import { BrandMark } from "../components/BrandMark";
 
 const fontStyle = document.createElement("style");
 fontStyle.textContent = [
@@ -143,7 +144,7 @@ function Popup() {
     <main className="pop">
       <header className="pop-head">
         <div className="pop-brand">
-          <span className="pop-mark" aria-hidden="true" />
+          <BrandMark className="pop-mark" />
           <span className="pop-wordmark">LeeView</span>
         </div>
         {health === "offline" ? (
