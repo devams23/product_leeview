@@ -81,23 +81,12 @@ button:focus-visible {
   gap: 8px;
 }
 
+/* The L mark, same component as the panel. */
 .pop-mark {
-  position: relative;
-  display: grid;
-  place-items: center;
+  display: block;
   flex: none;
   width: 18px;
   height: 18px;
-  border-radius: 6px;
-  background: var(--signal);
-}
-
-.pop-mark::after {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ink-0);
 }
 
 .pop-wordmark {
