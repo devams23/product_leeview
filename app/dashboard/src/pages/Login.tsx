@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/ui/Button";
-import { Brand, BrandMark } from "../components/ui/BrandMark";
+import { Brand } from "../components/ui/BrandMark";
 import { InterviewOrb, useInterviewScript } from "../components/landing/InterviewOrb";
 import { ExtensionAction } from "../components/ExtensionAction";
 
@@ -256,8 +256,7 @@ export function Login() {
       <main id="top" className="relative">
         <section className="mx-auto flex max-w-[1000px] flex-col items-center px-5 pt-14 text-center sm:px-8 sm:pt-20">
           <div className="lv-rise relative z-10 flex flex-col items-center gap-5">
-            <p className="flex items-center gap-3 rounded-full border border-line-2 bg-ink-1/80 py-1.5 pl-1.5 pr-4 text-[13px] text-text-2">
-              <BrandMark size={22} />
+            <p className="flex items-center gap-3 rounded-full border border-line-2 bg-ink-1/80 px-4 py-1.5 text-[13px] text-text-2">
               <WaveGlyph />
               Voice mock interviews for LeetCode
             </p>
