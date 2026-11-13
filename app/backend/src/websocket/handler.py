@@ -544,7 +544,7 @@ async def send_intro(ctx: _InterviewContext):
         await _stream_turn(ctx, messages, InterviewState.INTRO, "intro")
     except Exception as e:
         logger.error(f"[{sid}] Intro LLM call failed: {_err(e)}")
-        await _try_send(sid, {"type": "ERROR", "code": "LLM_FAILED", "message": "The interviewer could not start. Please try again."})
+        await _send_llm_failure(sid, e, "The interviewer could not start. Please try again.")
         await _try_send(sid, {"type": "STATE_CHANGED", "state": ctx.sm.current_state.value})
         await _try_send(sid, {"type": "AUDIO_FINISHED"})
         return
@@ -587,7 +587,7 @@ async def _handle_user_utterance(ctx: _InterviewContext, data: dict):
         await _stream_turn(ctx, messages, state_before, "reply")
     except Exception as e:
         logger.error(f"[{sid}] LLM call failed: {_err(e)}")
-        await _try_send(sid, {"type": "ERROR", "code": "LLM_FAILED", "message": "The interviewer could not respond. Please try again."})
+        await _send_llm_failure(sid, e, "The interviewer could not respond. Please try again.")
         await _try_send(sid, {"type": "AUDIO_FINISHED"})
 
 
